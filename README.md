@@ -1,5 +1,9 @@
 # ChatBI Autocomplete Service
 
+[![CI/CD Pipeline](https://github.com/whoishu/aibi/actions/workflows/ci.yml/badge.svg)](https://github.com/whoishu/aibi/actions/workflows/ci.yml)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+
 An intelligent autocomplete service for ChatBI system with hybrid search (keyword + vector), personalization, and continuous learning capabilities.
 
 ## Features
