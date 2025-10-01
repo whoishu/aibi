@@ -12,6 +12,17 @@ Get the ChatBI Autocomplete Service up and running in 5 minutes!
 
 ### 1. Clone & Setup
 
+**Option A: Using uv (Recommended)**
+
+```bash
+git clone https://github.com/whoishu/aibi.git
+cd aibi
+pip install uv
+uv sync
+```
+
+**Option B: Using pip (Traditional)**
+
 ```bash
 git clone https://github.com/whoishu/aibi.git
 cd aibi
@@ -35,6 +46,10 @@ curl http://localhost:9200  # OpenSearch should respond
 ### 3. Initialize Data
 
 ```bash
+# Using uv
+uv run python scripts/init_data.py
+
+# Or direct python
 python scripts/init_data.py
 ```
 
@@ -43,6 +58,10 @@ This loads 50+ sample Chinese/English queries. Takes 1-2 minutes on first run (d
 ### 4. Start Service
 
 ```bash
+# Using uv
+uv run python app/main.py
+
+# Or direct python
 python app/main.py
 ```
 

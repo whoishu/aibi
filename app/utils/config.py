@@ -1,14 +1,16 @@
 """Configuration management"""
 
-import yaml
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Optional
+
+import yaml
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
 
 class OpenSearchConfig(BaseModel):
     """OpenSearch configuration"""
+
     host: str = "localhost"
     port: int = 9200
     use_ssl: bool = False
@@ -20,6 +22,7 @@ class OpenSearchConfig(BaseModel):
 
 class RedisConfig(BaseModel):
     """Redis configuration"""
+
     host: str = "localhost"
     port: int = 6379
     db: int = 0
@@ -27,6 +30,7 @@ class RedisConfig(BaseModel):
 
 class AutocompleteConfig(BaseModel):
     """Autocomplete service configuration"""
+
     max_suggestions: int = 10
     min_score: float = 0.1
     keyword_weight: float = 0.7
@@ -37,12 +41,14 @@ class AutocompleteConfig(BaseModel):
 
 class VectorModelConfig(BaseModel):
     """Vector model configuration"""
+
     model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     dimension: int = 384
 
 
 class APIConfig(BaseModel):
     """API configuration"""
+
     host: str = "0.0.0.0"
     port: int = 8000
     title: str = "ChatBI Autocomplete Service"
@@ -52,6 +58,7 @@ class APIConfig(BaseModel):
 
 class Config(BaseSettings):
     """Main configuration class"""
+
     opensearch: OpenSearchConfig = OpenSearchConfig()
     redis: RedisConfig = RedisConfig()
     autocomplete: AutocompleteConfig = AutocompleteConfig()
@@ -64,10 +71,10 @@ class Config(BaseSettings):
         path = Path(file_path)
         if not path.exists():
             return cls()
-        
-        with open(path, 'r', encoding='utf-8') as f:
+
+        with open(path, encoding="utf-8") as f:
             config_dict = yaml.safe_load(f)
-        
+
         return cls(**config_dict)
 
 

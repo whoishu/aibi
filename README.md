@@ -51,8 +51,11 @@ An intelligent autocomplete service for ChatBI system with hybrid search (keywor
 - Python 3.8+
 - OpenSearch 2.0+
 - Redis 6.0+ (optional, for personalization)
+- [uv](https://docs.astral.sh/uv/) (recommended) or pip for dependency management
 
 ### Setup
+
+#### Option 1: Using uv (Recommended)
 
 1. Clone the repository:
 ```bash
@@ -60,12 +63,19 @@ git clone https://github.com/whoishu/aibi.git
 cd aibi
 ```
 
-2. Install dependencies:
+2. Install uv if you haven't already:
 ```bash
-pip install -r requirements.txt
+pip install uv
 ```
 
-3. Configure the service by editing `config.yaml`:
+3. Sync dependencies:
+```bash
+uv sync
+```
+
+This will create a virtual environment (`.venv`) and install all dependencies.
+
+4. Configure the service by editing `config.yaml`:
 ```yaml
 opensearch:
   host: "localhost"
@@ -82,6 +92,27 @@ autocomplete:
   vector_weight: 0.3
   personalization_weight: 0.2
 ```
+
+#### Option 2: Using pip (Traditional)
+
+1. Clone the repository:
+```bash
+git clone https://github.com/whoishu/aibi.git
+cd aibi
+```
+
+2. Create and activate a virtual environment (recommended):
+```bash
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+4. Configure the service by editing `config.yaml` (see above)
 
 ## Quick Start
 
@@ -103,12 +134,23 @@ docker run -d -p 6379:6379 redis:7-alpine
 ### 2. Initialize Sample Data
 
 ```bash
+# Using uv
+uv run python scripts/init_data.py
+
+# Or using direct python
 python scripts/init_data.py
 ```
 
 ### 3. Start the Service
 
 ```bash
+# Using uv
+uv run python app/main.py
+
+# Or using uvicorn directly with uv
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Or using direct python
 python app/main.py
 ```
 
@@ -270,8 +312,54 @@ aibi/
 ├── scripts/
 │   └── init_data.py            # Sample data initialization
 ├── config.yaml                 # Configuration file
-├── requirements.txt            # Python dependencies
+├── pyproject.toml              # Project dependencies and configuration
+├── requirements.txt            # Python dependencies (legacy, use pyproject.toml)
+├── Makefile                    # Development commands
 └── README.md
+```
+
+### Code Quality Tools
+
+This project uses modern Python development tools for code quality:
+
+- **[uv](https://docs.astral.sh/uv/)**: Fast Python package installer and resolver
+- **[black](https://black.readthedocs.io/)**: Code formatter
+- **[ruff](https://docs.astral.sh/ruff/)**: Fast Python linter
+
+#### Running Quality Checks
+
+```bash
+# Format code with black
+make format
+# or
+uv run black app/ scripts/ examples/
+
+# Lint code with ruff
+make lint
+# or
+uv run ruff check app/ scripts/ examples/
+
+# Run both checks
+make check
+```
+
+#### Development Workflow
+
+1. Install dependencies:
+```bash
+make install
+```
+
+2. Make your changes to the code
+
+3. Run quality checks:
+```bash
+make check
+```
+
+4. Run tests (when available):
+```bash
+make test
 ```
 
 ### Adding New Features

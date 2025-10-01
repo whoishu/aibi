@@ -20,6 +20,18 @@ cd aibi
 
 ### 2. Set Up Python Virtual Environment (Recommended)
 
+**Option A: Using uv (Recommended)**
+
+```bash
+# Install uv if not already installed
+pip install uv
+
+# uv will automatically create and manage the virtual environment
+uv sync
+```
+
+**Option B: Using venv (Traditional)**
+
 ```bash
 # Create virtual environment
 python3 -m venv venv
@@ -32,6 +44,15 @@ source venv/bin/activate
 ```
 
 ### 3. Install Python Dependencies
+
+**If using uv (after step 2A):**
+
+Dependencies are already installed. To install development tools:
+```bash
+uv sync --all-extras
+```
+
+**If using venv (after step 2B):**
 
 ```bash
 pip install -r requirements.txt
