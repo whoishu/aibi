@@ -1,5 +1,9 @@
 # ChatBI Autocomplete Service
 
+[![CI/CD Pipeline](https://github.com/whoishu/aibi/actions/workflows/ci.yml/badge.svg)](https://github.com/whoishu/aibi/actions/workflows/ci.yml)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+
 An intelligent autocomplete service for ChatBI system with hybrid search (keyword + vector), personalization, and continuous learning capabilities.
 
 ## Features
@@ -308,12 +312,47 @@ aibi/
 │   │   └── main.tsx
 │   ├── package.json
 │   └── vite.config.ts
+├── tests/
+│   ├── unit/                   # Unit tests
+│   ├── integration/            # Integration tests
+│   └── conftest.py            # Test fixtures
 ├── scripts/
 │   └── init_data.py            # Sample data initialization
 ├── config.yaml                 # Configuration file
-├── requirements.txt            # Python dependencies
+├── requirements.txt            # Production dependencies
+├── requirements-dev.txt        # Development dependencies
+├── Makefile                    # Development commands
 └── README.md
 ```
+
+### Development Setup
+
+For development, install development dependencies:
+```bash
+pip install -r requirements-dev.txt
+make install-dev  # Also installs pre-commit hooks
+```
+
+### Code Quality Tools
+
+We use several tools to maintain code quality:
+
+- **Black**: Code formatter
+- **isort**: Import organizer
+- **Flake8**: Style checker
+- **MyPy**: Type checker
+- **pytest**: Testing framework
+- **pre-commit**: Git hooks
+
+Run quality checks:
+```bash
+make lint        # Run all linters
+make format      # Format code
+make test        # Run tests
+make coverage    # Generate coverage report
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guidelines.
 
 ### Adding New Features
 
@@ -364,10 +403,16 @@ vector_model:
 - Check Redis is running: `redis-cli ping`
 - Verify Redis configuration in `config.yaml`
 
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on:
+
+- Development setup
+- Code quality standards
+- Testing requirements
+- Pull request process
+- CI/CD pipeline
+
 ## License
 
 MIT License
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
