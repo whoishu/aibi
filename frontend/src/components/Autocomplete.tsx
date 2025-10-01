@@ -50,7 +50,7 @@ const Autocomplete: React.FC<AutocompleteProps> = ({
 
     debounceTimerRef.current = setTimeout(() => {
       fetchSuggestions(query);
-    }, 300);
+    }, 300) as unknown as number;
 
     return () => {
       if (debounceTimerRef.current) {
