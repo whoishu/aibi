@@ -2,6 +2,52 @@
 
 All notable changes to the ChatBI Autocomplete Service will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+#### Quality Management & Development Tools
+- **Development Dependencies**: Added `requirements-dev.txt` with testing and code quality tools
+  - pytest, pytest-asyncio, pytest-cov, pytest-mock for testing
+  - black, isort, flake8, mypy for code quality
+  - pre-commit for automated checks
+  - httpx for testing API clients
+
+- **Code Quality Configuration**:
+  - `pyproject.toml`: Centralized configuration for Black, isort, MyPy, pytest, and coverage
+  - `.flake8`: Flake8 linting configuration
+  - `pytest.ini`: pytest test runner configuration
+  - `.pre-commit-config.yaml`: Pre-commit hooks for automated quality checks
+
+- **CI/CD Pipeline**: GitHub Actions workflow (`.github/workflows/ci.yml`)
+  - Automated linting (Black, isort, Flake8, MyPy)
+  - Multi-version testing (Python 3.9, 3.10, 3.11, 3.12)
+  - Integration tests with OpenSearch and Redis services
+  - Security scanning (Safety, Bandit)
+  - Code coverage reporting (Codecov integration)
+  - Build verification
+
+- **Testing Infrastructure**:
+  - `tests/` directory with unit and integration test structure
+  - `tests/unit/test_config.py`: Configuration validation tests
+  - `tests/unit/test_schemas.py`: Pydantic schema tests
+  - `tests/conftest.py`: Shared test fixtures
+  - `tests/README.md`: Testing guidelines and documentation
+
+- **Development Tools**:
+  - `Makefile`: Common development commands (lint, format, test, coverage, etc.)
+  - `scripts/check_dependencies.py`: Dependency health check script
+  - Badge support in README for CI status and code style
+
+- **Documentation**:
+  - `CONTRIBUTING.md`: Comprehensive contribution guidelines
+  - `QUALITY.md`: Quality management practices and tools documentation
+  - Updated README.md with development setup and quality tools sections
+
+### Changed
+- Updated `.gitignore` to exclude test coverage reports and quality tool artifacts
+- Enhanced README.md with CI/CD badges and quality management information
+
 ## [1.0.0] - 2024-10-01
 
 ### Added

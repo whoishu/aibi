@@ -37,8 +37,13 @@ ENV/
 # Testing
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
 .tox/
+coverage.xml
+.cache/
+*.cover
+.hypothesis/
 
 # Environment variables
 .env
@@ -51,3 +56,13 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Code quality tools
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+
+# Security scan reports
+bandit-report.json
+
