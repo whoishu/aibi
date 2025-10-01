@@ -11,6 +11,7 @@ An intelligent autocomplete service for ChatBI system with hybrid search (keywor
 - **FastAPI Framework**: High-performance REST API
 - **OpenSearch Backend**: Scalable search engine with KNN vector search
 - **Redis-based Tracking**: User behavior tracking and preference learning
+- **Web UI Demo**: React + TypeScript frontend for interactive testing
 
 ## Architecture
 
@@ -124,6 +125,38 @@ The service will be available at `http://localhost:8000`
 Access the interactive API documentation at:
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
+
+### 5. Try the Frontend Demo (Optional)
+
+A React + TypeScript frontend demo is available:
+
+**Option 1: Use the built version (recommended)**
+```bash
+# Build the frontend
+cd frontend
+npm install
+npm run build
+cd ..
+
+# Start the backend
+python app/main.py
+```
+
+The frontend will be available at `http://localhost:8000/demo`
+
+**Option 2: Run frontend development server**
+```bash
+# Terminal 1: Start backend
+python app/main.py
+
+# Terminal 2: Start frontend dev server
+cd frontend
+npm run dev
+```
+
+Frontend dev server will be available at `http://localhost:3000`
+
+See [frontend/README.md](frontend/README.md) for more details.
 
 ## API Usage
 
@@ -267,6 +300,14 @@ aibi/
 │   └── utils/
 │       ├── __init__.py
 │       └── config.py           # Configuration management
+├── frontend/                   # React + TypeScript UI
+│   ├── src/
+│   │   ├── components/
+│   │   │   └── Autocomplete.tsx
+│   │   ├── App.tsx
+│   │   └── main.tsx
+│   ├── package.json
+│   └── vite.config.ts
 ├── scripts/
 │   └── init_data.py            # Sample data initialization
 ├── config.yaml                 # Configuration file

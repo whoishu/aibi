@@ -1,9 +1,12 @@
 """Main FastAPI application"""
 
 import logging
+from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.utils.config import get_config
 from app.services.opensearch_service import OpenSearchService
@@ -117,6 +120,19 @@ app.add_middleware(
 # Include routers
 app.include_router(router, prefix="/api/v1", tags=["autocomplete"])
 
+# Serve frontend static files if they exist
+frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
+if frontend_dist.exists() and frontend_dist.is_dir():
+    # Mount static files (CSS, JS, etc.)
+    app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
+    
+    @app.get("/demo")
+    async def serve_frontend():
+        """Serve the frontend demo page"""
+        return FileResponse(str(frontend_dist / "index.html"))
+    
+    logger.info(f"Frontend demo available at /demo")
+
 
 @app.get("/")
 async def root():
@@ -124,7 +140,8 @@ async def root():
     return {
         "service": "ChatBI Autocomplete Service",
         "version": config.api.version,
-        "status": "running"
+        "status": "running",
+        "demo": "/demo" if frontend_dist.exists() else None
     }
 
 
