@@ -131,6 +131,11 @@ if frontend_dist.exists() and frontend_dist.is_dir():
         """Serve the frontend demo page"""
         return FileResponse(str(frontend_dist / "index.html"))
     
+    @app.get("/demo/{path:path}")
+    async def serve_frontend_catchall(path: str):
+        """Serve index.html for any unmatched frontend route under /demo"""
+        return FileResponse(str(frontend_dist / "index.html"))
+    
     logger.info(f"Frontend demo available at /demo")
 
 
