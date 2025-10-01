@@ -14,6 +14,18 @@ Currently, the service does not require authentication. For production deploymen
 
 ## Endpoints
 
+### Overview
+
+The service provides several types of query assistance:
+
+- **Autocomplete**: Suggests completions as users type
+- **Similar Queries**: Returns queries that are semantically similar (using vector similarity)
+- **Related Queries**: Returns queries that are contextually related (using hybrid search and user history)
+
+The key differences:
+- **Similar queries** focus on semantic similarity (e.g., "销售分析" → "销售数据分析", "销售趋势分析")
+- **Related queries** include broader context, user history, and trending queries (e.g., "销售报告" → "市场分析", "业绩统计")
+
 ### 1. Get Autocomplete Suggestions
 
 Get autocomplete suggestions for a user query.
@@ -256,6 +268,154 @@ curl "http://localhost:8000/api/v1/health"
 
 ---
 
+### 6. Get Similar Queries
+
+Get semantically similar queries for a user input query.
+
+**Endpoint**: `POST /similar-queries`
+
+**Request Body**:
+```json
+{
+  "query": "销售分析",
+  "user_id": "user123",
+  "limit": 10
+}
+```
+
+**Parameters**:
+- `query` (string, required): User input query
+- `user_id` (string, optional): User ID for personalization
+- `limit` (integer, optional): Maximum number of similar queries (1-50, default: 10)
+
+**Response** (200 OK):
+```json
+{
+  "query": "销售分析",
+  "similar_queries": [
+    {
+      "text": "销售数据分析",
+      "score": 0.9234,
+      "source": "vector",
+      "metadata": {
+        "keywords": ["sales", "data", "analysis"],
+        "doc_id": "xyz789"
+      }
+    },
+    {
+      "text": "销售趋势报告",
+      "score": 0.8756,
+      "source": "vector",
+      "metadata": {
+        "keywords": ["sales", "trend", "report"],
+        "doc_id": "abc456"
+      }
+    }
+  ],
+  "total": 2
+}
+```
+
+**Response Fields**:
+- `query`: Original query
+- `similar_queries`: Array of similar queries
+  - `text`: Query text
+  - `score`: Similarity score (0-1, higher is more similar)
+  - `source`: Source type (`vector`, `personalized`)
+  - `metadata`: Additional information
+- `total`: Total number of similar queries returned
+
+**Example**:
+```bash
+curl -X POST "http://localhost:8000/api/v1/similar-queries" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "销售分析",
+    "user_id": "user123",
+    "limit": 5
+  }'
+```
+
+---
+
+### 7. Get Related Queries
+
+Get contextually related queries for a user input query.
+
+**Endpoint**: `POST /related-queries`
+
+**Request Body**:
+```json
+{
+  "query": "销售报告",
+  "user_id": "user123",
+  "limit": 10
+}
+```
+
+**Parameters**:
+- `query` (string, required): User input query
+- `user_id` (string, optional): User ID for personalization
+- `limit` (integer, optional): Maximum number of related queries (1-50, default: 10)
+
+**Response** (200 OK):
+```json
+{
+  "query": "销售报告",
+  "related_queries": [
+    {
+      "text": "市场分析报告",
+      "score": 0.8543,
+      "source": "hybrid",
+      "metadata": {
+        "keywords": ["market", "analysis", "report"],
+        "doc_id": "def123"
+      }
+    },
+    {
+      "text": "业绩统计",
+      "score": 0.8000,
+      "source": "history",
+      "metadata": {
+        "from_user_history": true
+      }
+    },
+    {
+      "text": "季度总结",
+      "score": 0.7654,
+      "source": "hybrid",
+      "metadata": {
+        "keywords": ["quarter", "summary"],
+        "doc_id": "ghi789"
+      }
+    }
+  ],
+  "total": 3
+}
+```
+
+**Response Fields**:
+- `query`: Original query
+- `related_queries`: Array of related queries
+  - `text`: Query text
+  - `score`: Relevance score (0-1, higher is more relevant)
+  - `source`: Source type (`hybrid`, `history`, `trending`)
+  - `metadata`: Additional information
+- `total`: Total number of related queries returned
+
+**Example**:
+```bash
+curl -X POST "http://localhost:8000/api/v1/related-queries" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "销售报告",
+    "user_id": "user123",
+    "limit": 5
+  }'
+```
+
+---
+
 ## Error Responses
 
 All endpoints may return error responses:
@@ -345,7 +505,25 @@ Currently, there is no rate limiting. For production:
 - Skip keywords for important terms
 - Use extremely long text (>1000 chars)
 
-### 4. Error Handling
+### 4. Similar and Related Queries
+
+**When to use Similar Queries**:
+- User wants alternative phrasings of the same concept
+- Showing "search instead for..." suggestions
+- Query refinement based on semantic meaning
+
+**When to use Related Queries**:
+- Showing "people also searched for..." suggestions
+- Broader exploration of related topics
+- Combining semantic similarity with user behavior
+
+**Best Practices**:
+- Limit results to 5-8 for UI display
+- Use personalization (user_id) when available
+- Cache results for popular queries
+- Show similar queries first, related queries second
+
+### 5. Error Handling
 
 ```python
 try:
@@ -382,11 +560,33 @@ class AutocompleteClient:
             json={"query": query, "user_id": user_id, "limit": limit}
         )
         return response.json()
+    
+    def get_similar_queries(self, query, user_id=None, limit=10):
+        response = requests.post(
+            f"{self.base_url}/api/v1/similar-queries",
+            json={"query": query, "user_id": user_id, "limit": limit}
+        )
+        return response.json()
+    
+    def get_related_queries(self, query, user_id=None, limit=10):
+        response = requests.post(
+            f"{self.base_url}/api/v1/related-queries",
+            json={"query": query, "user_id": user_id, "limit": limit}
+        )
+        return response.json()
 
 # Usage
 client = AutocompleteClient()
 results = client.get_suggestions("销售", user_id="user123")
 print(results)
+
+# Get similar queries
+similar = client.get_similar_queries("销售分析", user_id="user123")
+print(similar["similar_queries"])
+
+# Get related queries
+related = client.get_related_queries("销售报告", user_id="user123")
+print(related["related_queries"])
 ```
 
 ### JavaScript
@@ -403,9 +603,39 @@ async function getAutocomplete(query, userId = null, limit = 10) {
   return await response.json();
 }
 
+async function getSimilarQueries(query, userId = null, limit = 10) {
+  const response = await fetch('http://localhost:8000/api/v1/similar-queries', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query, user_id: userId, limit }),
+  });
+  return await response.json();
+}
+
+async function getRelatedQueries(query, userId = null, limit = 10) {
+  const response = await fetch('http://localhost:8000/api/v1/related-queries', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query, user_id: userId, limit }),
+  });
+  return await response.json();
+}
+
 // Usage
 getAutocomplete('销售', 'user123').then(data => {
   console.log(data.suggestions);
+});
+
+getSimilarQueries('销售分析', 'user123').then(data => {
+  console.log('Similar queries:', data.similar_queries);
+});
+
+getRelatedQueries('销售报告', 'user123').then(data => {
+  console.log('Related queries:', data.related_queries);
 });
 ```
 
@@ -416,6 +646,16 @@ getAutocomplete('销售', 'user123').then(data => {
 curl -X POST "http://localhost:8000/api/v1/autocomplete" \
   -H "Content-Type: application/json" \
   -d '{"query":"销售","user_id":"user123","limit":5}'
+
+# Get similar queries
+curl -X POST "http://localhost:8000/api/v1/similar-queries" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"销售分析","user_id":"user123","limit":5}'
+
+# Get related queries
+curl -X POST "http://localhost:8000/api/v1/related-queries" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"销售报告","user_id":"user123","limit":5}'
 
 # Submit feedback
 curl -X POST "http://localhost:8000/api/v1/feedback" \
