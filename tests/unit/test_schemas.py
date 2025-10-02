@@ -1,4 +1,5 @@
 """Unit tests for Pydantic schemas"""
+
 import pytest
 from pydantic import ValidationError
 from app.models.schemas import (
@@ -60,9 +61,7 @@ def test_autocomplete_response():
 @pytest.mark.unit
 def test_feedback_request_valid():
     """Test valid feedback request"""
-    feedback = FeedbackRequest(
-        query="销售", selected="销售额", user_id="user123"
-    )
+    feedback = FeedbackRequest(query="销售", selected="销售额", user_id="user123")
     assert feedback.query == "销售"
     assert feedback.selected == "销售额"
     assert feedback.user_id == "user123"
