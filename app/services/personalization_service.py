@@ -3,7 +3,7 @@
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +237,7 @@ class PersonalizationService:
             # Then check global sequences
             global_sequence_key = f"sequence:{query}"
             global_next = self.redis_client.zrevrange(global_sequence_key, 0, limit - 1, withscores=True)
-            
+
             # Combine and deduplicate next queries
             seen_queries = {q for q, _ in result["next"]}
             for query_text, score in global_next:
