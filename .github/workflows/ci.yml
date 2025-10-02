@@ -13,6 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Upgrade pip, setuptools, and wheel
+        run: pip install --upgrade pip setuptools wheel isort
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -77,6 +80,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
+
+      - name: Upgrade pip, setuptools, and wheel
+        run: pip install --upgrade pip setuptools wheel isort
 
       - name: Install dependencies
         run: |

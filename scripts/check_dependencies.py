@@ -28,24 +28,19 @@ def main():
     print("=" * 60)
 
     checks = [
-        (
-            "pip list --outdated",
-            "Checking for outdated packages..."
-        ),
-        (
-            "pip check",
-            "Checking for package compatibility issues..."
-        ),
+        ("pip list --outdated", "Checking for outdated packages..."),
+        ("pip check", "Checking for package compatibility issues..."),
     ]
 
     # Try to run safety check if available
     try:
-        subprocess.run(["safety", "--version"], 
-                      capture_output=True, check=True)
-        checks.append((
-            "safety check --file requirements.txt --json",
-            "Running security vulnerability scan..."
-        ))
+        subprocess.run(["safety", "--version"], capture_output=True, check=True)
+        checks.append(
+            (
+                "safety check --file requirements.txt --json",
+                "Running security vulnerability scan...",
+            )
+        )
     except (subprocess.CalledProcessError, FileNotFoundError):
         print("\nNote: 'safety' not installed. Install with: pip install safety")
         print("      To scan for security vulnerabilities.")

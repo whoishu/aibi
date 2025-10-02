@@ -2,19 +2,22 @@
 
 import logging
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Depends
+
+from fastapi import APIRouter, Depends, HTTPException
+
 from app.models.schemas import (
     AutocompleteRequest,
     AutocompleteResponse,
-    FeedbackRequest,
-    DocumentRequest,
     BulkDocumentRequest,
     HealthResponse,
     SimilarQueriesRequest,
     SimilarQueriesResponse,
     RelatedQueriesRequest,
     RelatedQueriesResponse,
-    QueryItem
+    QueryItem,
+    DocumentRequest,
+    FeedbackRequest,
+    HealthResponse,
 )
 from app.services.autocomplete_service import AutocompleteService
 
@@ -41,12 +44,11 @@ def set_autocomplete_service(service: AutocompleteService):
 
 @router.post("/autocomplete", response_model=AutocompleteResponse)
 async def autocomplete(
-    request: AutocompleteRequest,
-    service: AutocompleteService = Depends(get_autocomplete_service)
+    request: AutocompleteRequest, service: AutocompleteService = Depends(get_autocomplete_service)
 ):
     """
     Get autocomplete suggestions for user input
-    
+
     - **query**: User input string (supports Chinese and English)
     - **user_id**: Optional user ID for personalized suggestions
     - **limit**: Maximum number of suggestions (1-50)
@@ -54,15 +56,11 @@ async def autocomplete(
     """
     try:
         suggestions = service.get_suggestions(
-            query=request.query,
-            user_id=request.user_id,
-            limit=request.limit
+            query=request.query, user_id=request.user_id, limit=request.limit
         )
-        
+
         return AutocompleteResponse(
-            query=request.query,
-            suggestions=suggestions,
-            total=len(suggestions)
+            query=request.query, suggestions=suggestions, total=len(suggestions)
         )
     except Exception as e:
         logger.error(f"Autocomplete error: {e}")
@@ -71,12 +69,11 @@ async def autocomplete(
 
 @router.post("/feedback")
 async def feedback(
-    request: FeedbackRequest,
-    service: AutocompleteService = Depends(get_autocomplete_service)
+    request: FeedbackRequest, service: AutocompleteService = Depends(get_autocomplete_service)
 ):
     """
     Record user feedback (selection)
-    
+
     - **query**: Original query
     - **selected_suggestion**: The suggestion user selected
     - **user_id**: Optional user ID
@@ -87,12 +84,12 @@ async def feedback(
             query=request.query,
             selected_suggestion=request.selected_suggestion,
             user_id=request.user_id,
-            timestamp=request.timestamp
+            timestamp=request.timestamp,
         )
-        
+
         return {
             "success": success,
-            "message": "Feedback recorded" if success else "Failed to record feedback"
+            "message": "Feedback recorded" if success else "Failed to record feedback",
         }
     except Exception as e:
         logger.error(f"Feedback error: {e}")
@@ -101,12 +98,11 @@ async def feedback(
 
 @router.post("/documents")
 async def add_document(
-    request: DocumentRequest,
-    service: AutocompleteService = Depends(get_autocomplete_service)
+    request: DocumentRequest, service: AutocompleteService = Depends(get_autocomplete_service)
 ):
     """
     Add a document to the autocomplete index
-    
+
     - **text**: Document text
     - **doc_id**: Optional document ID
     - **keywords**: Optional list of keywords
@@ -117,12 +113,12 @@ async def add_document(
             text=request.text,
             doc_id=request.doc_id,
             keywords=request.keywords,
-            metadata=request.metadata
+            metadata=request.metadata,
         )
-        
+
         return {
             "success": success,
-            "message": "Document added" if success else "Failed to add document"
+            "message": "Document added" if success else "Failed to add document",
         }
     except Exception as e:
         logger.error(f"Add document error: {e}")
@@ -131,22 +127,21 @@ async def add_document(
 
 @router.post("/documents/bulk")
 async def add_documents_bulk(
-    request: BulkDocumentRequest,
-    service: AutocompleteService = Depends(get_autocomplete_service)
+    request: BulkDocumentRequest, service: AutocompleteService = Depends(get_autocomplete_service)
 ):
     """
     Add multiple documents in bulk
-    
+
     - **documents**: List of documents to add
     """
     try:
         documents = [doc.dict() for doc in request.documents]
         success, errors = service.add_documents_bulk(documents)
-        
+
         return {
             "success": success,
             "errors": errors,
-            "message": f"Added {success} documents with {errors} errors"
+            "message": f"Added {success} documents with {errors} errors",
         }
     except Exception as e:
         logger.error(f"Bulk add error: {e}")
@@ -154,25 +149,23 @@ async def add_documents_bulk(
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health_check(
-    service: AutocompleteService = Depends(get_autocomplete_service)
-):
+async def health_check(service: AutocompleteService = Depends(get_autocomplete_service)):
     """
     Health check endpoint
     """
     try:
         opensearch_connected = service.opensearch.check_connection()
         redis_connected = False
-        
+
         if service.personalization:
             redis_connected = service.personalization.check_connection()
-        
+
         status = "healthy" if opensearch_connected else "degraded"
-        
+
         return HealthResponse(
             status=status,
             opensearch_connected=opensearch_connected,
-            redis_connected=redis_connected
+            redis_connected=redis_connected,
         )
     except Exception as e:
         logger.error(f"Health check error: {e}")
