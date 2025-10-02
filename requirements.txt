@@ -9,3 +9,6 @@ sentence-transformers==2.3.1
 numpy==1.24.3
 redis==5.0.1
 PyYAML==6.0.1
+# Optional LLM dependencies (install as needed)
+# openai>=1.0.0  # For OpenAI GPT models
+# anthropic>=0.18.0  # For Anthropic Claude models

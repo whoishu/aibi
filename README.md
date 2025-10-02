@@ -9,6 +9,7 @@ An intelligent autocomplete service for ChatBI system with hybrid search (keywor
 ## Features
 
 - **Hybrid Search**: Combines keyword-based and vector-based search for optimal results
+- **LLM-Enhanced Recommendations** (New!): Optional integration with GPT/Claude for intelligent query expansion and related suggestions
 - **Multilingual Support**: Full support for Chinese and English mixed input
 - **Personalization**: Learns from user behavior and provides personalized suggestions
 - **Real-time Updates**: Supports dynamic data updates for millions of documents
@@ -279,6 +280,32 @@ Personalization learns from:
 - User's historical selections
 - Query-specific preferences
 - Global popularity trends
+
+### LLM Integration (Optional)
+
+Enable LLM-powered enhancements for smarter recommendations:
+
+```yaml
+llm:
+  enabled: true
+  provider: "openai"  # or "anthropic"
+  model: "gpt-3.5-turbo"
+  temperature: 0.7
+  max_tokens: 150
+```
+
+Set your API key as an environment variable:
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+See [LLM_INTEGRATION.md](LLM_INTEGRATION.md) for detailed setup and usage guide.
+
+**Benefits of LLM Integration:**
+- Intelligent query expansion for broader search coverage
+- Context-aware related query suggestions
+- Natural language understanding for better intent matching
+- Personalized recommendations based on conversation flow
 
 ## Development
 

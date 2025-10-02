@@ -31,23 +31,23 @@ The ChatBI Autocomplete Service is designed as a modular, scalable system with c
 ┌─────────────────────────────────────────────────────────┐
 │            AutocompleteService (Orchestrator)            │
 ├─────────────────────────────────────────────────────────┤
-│  • Query Processing                                      │
+│  • Query Processing & Expansion                          │
 │  • Result Ranking & Scoring                              │
 │  • Feedback Recording                                    │
 │  • Document Management                                   │
-└───┬──────────────┬──────────────┬─────────────┬─────────┘
-    │              │              │             │
-    ▼              ▼              ▼             ▼
+└───┬──────────────┬──────────────┬──────────┬─────┬──────┘
+    │              │              │          │     │
+    ▼              ▼              ▼          ▼     ▼
+┌─────────┐  ┌──────────┐  ┌──────────┐  ┌───────┐  ┌────────┐
+│OpenSearch│  │  Vector  │  │Personal- │  │  LLM  │  │ Config │
+│ Service  │  │ Service  │  │ization   │  │Service│  │Manager │
+└────┬────┘  └────┬─────┘  └────┬─────┘  └───┬───┘  └────────┘
+     │            │              │            │
+     ▼            ▼              ▼            ▼
 ┌─────────┐  ┌──────────┐  ┌──────────┐  ┌────────────┐
-│OpenSearch│  │  Vector  │  │Personal- │  │   Config   │
-│ Service  │  │ Service  │  │ization   │  │  Manager   │
-└────┬────┘  └────┬─────┘  └────┬─────┘  └────────────┘
-     │            │              │
-     ▼            ▼              ▼
-┌─────────┐  ┌──────────┐  ┌──────────┐
-│OpenSearch│  │Sentence  │  │  Redis   │
-│ (Index)  │  │Transform │  │(Cache)   │
-└──────────┘  └──────────┘  └──────────┘
+│OpenSearch│  │Sentence  │  │  Redis   │  │OpenAI/     │
+│ (Index)  │  │Transform │  │(Cache)   │  │Anthropic   │
+└──────────┘  └──────────┘  └──────────┘  └────────────┘
 ```
 
 ## Component Details
@@ -155,6 +155,26 @@ global:query:{query}          → Sorted Set (global popularity)
 - Query-specific preferences
 - Frequency-based boosting
 - TTL-based expiration
+
+#### 2.5 LLMService (Optional)
+
+**Responsibility**: LLM-powered query understanding and enhancement
+
+**Supported Providers**:
+- OpenAI (GPT-3.5, GPT-4)
+- Anthropic (Claude)
+- Local models (future)
+
+**Features**:
+- **Query Expansion**: Generates semantically related search terms
+- **Related Query Generation**: Suggests intelligent follow-up queries
+- **Query Rewriting**: Optimizes queries for better search results
+- **Context-Aware**: Considers user history and domain
+
+**Integration Points**:
+- Autocomplete: Expands queries for broader coverage
+- Related Queries: Adds LLM-generated suggestions with high priority
+- Graceful Fallback: System works without LLM if unavailable
 
 ### 3. Model Layer (app/models/)
 

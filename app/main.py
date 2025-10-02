@@ -14,6 +14,7 @@ from app.services.autocomplete_service import AutocompleteService
 from app.services.opensearch_service import OpenSearchService
 from app.services.personalization_service import PersonalizationService
 from app.services.vector_service import VectorService
+from app.services.llm_service import LLMService
 from app.utils.config import get_config
 
 # Configure logging
@@ -70,15 +71,33 @@ async def lifespan(app: FastAPI):
                 logger.warning("Redis not connected - personalization disabled")
                 personalization_service = None
 
+        # LLM service
+        llm_service = None
+        if config.llm.enabled:
+            llm_service = LLMService(
+                provider=config.llm.provider,
+                model=config.llm.model,
+                api_key=config.llm.api_key,
+                temperature=config.llm.temperature,
+                max_tokens=config.llm.max_tokens,
+            )
+            if llm_service.is_available():
+                logger.info(f"LLM service initialized with {config.llm.provider}/{config.llm.model}")
+            else:
+                logger.warning("LLM service not available - enhanced recommendations disabled")
+                llm_service = None
+
         # Autocomplete service
         autocomplete_service = AutocompleteService(
             opensearch_service=opensearch_service,
             vector_service=vector_service,
             personalization_service=personalization_service,
+            llm_service=llm_service,
             keyword_weight=config.autocomplete.keyword_weight,
             vector_weight=config.autocomplete.vector_weight,
             personalization_weight=config.autocomplete.personalization_weight,
             enable_personalization=config.autocomplete.enable_personalization,
+            enable_llm=config.llm.enabled,
         )
 
         # Set global service
