@@ -1,8 +1,9 @@
 """Configuration management"""
 
-import yaml
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+import yaml
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 

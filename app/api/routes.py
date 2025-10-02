@@ -2,13 +2,15 @@
 
 import logging
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Depends
+
+from fastapi import APIRouter, Depends, HTTPException
+
 from app.models.schemas import (
     AutocompleteRequest,
     AutocompleteResponse,
-    FeedbackRequest,
-    DocumentRequest,
     BulkDocumentRequest,
+    DocumentRequest,
+    FeedbackRequest,
     HealthResponse,
 )
 from app.services.autocomplete_service import AutocompleteService

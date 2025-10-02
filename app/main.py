@@ -1,19 +1,20 @@
 """Main FastAPI application"""
 
 import logging
-from pathlib import Path
 from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
-from app.utils.config import get_config
-from app.services.opensearch_service import OpenSearchService
-from app.services.vector_service import VectorService
-from app.services.personalization_service import PersonalizationService
-from app.services.autocomplete_service import AutocompleteService
 from app.api.routes import router, set_autocomplete_service
+from app.services.autocomplete_service import AutocompleteService
+from app.services.opensearch_service import OpenSearchService
+from app.services.personalization_service import PersonalizationService
+from app.services.vector_service import VectorService
+from app.utils.config import get_config
 
 # Configure logging
 logging.basicConfig(

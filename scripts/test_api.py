@@ -1,8 +1,9 @@
 """Simple test script for the autocomplete API"""
 
-import requests
 import json
 import time
+
+import requests
 
 BASE_URL = "http://localhost:8000"
 

@@ -1,7 +1,7 @@
 """Verification script to check if the installation is correct"""
 
-import sys
 import os
+import sys
 
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -28,10 +28,10 @@ def verify_imports():
         print("✓ Config imported successfully")
 
         # Test services (without initializing connections)
-        from app.services.vector_service import VectorService
+        from app.services.autocomplete_service import AutocompleteService
         from app.services.opensearch_service import OpenSearchService
         from app.services.personalization_service import PersonalizationService
-        from app.services.autocomplete_service import AutocompleteService
+        from app.services.vector_service import VectorService
 
         print("✓ Services imported successfully")
 

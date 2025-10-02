@@ -1,9 +1,9 @@
 """Personalization service using Redis for user behavior tracking"""
 
-import logging
 import json
-from typing import List, Dict, Any, Optional, Set
+import logging
 from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
 

@@ -1,11 +1,12 @@
 """Main autocomplete service orchestrating all components"""
 
 import logging
-from typing import List, Dict, Any, Optional
-from app.services.opensearch_service import OpenSearchService
-from app.services.vector_service import VectorService
-from app.services.personalization_service import PersonalizationService
+from typing import Any, Dict, List, Optional
+
 from app.models.schemas import Suggestion
+from app.services.opensearch_service import OpenSearchService
+from app.services.personalization_service import PersonalizationService
+from app.services.vector_service import VectorService
 
 logger = logging.getLogger(__name__)
 

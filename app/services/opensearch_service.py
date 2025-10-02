@@ -1,7 +1,8 @@
 """OpenSearch service for hybrid search"""
 
 import logging
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
 from opensearchpy import OpenSearch, helpers
 from opensearchpy.exceptions import NotFoundError
 

@@ -1,16 +1,17 @@
 """Script to initialize sample data for testing"""
 
-import sys
 import os
+import sys
 
 # Add parent directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import logging
-from app.utils.config import get_config
+
+from app.services.autocomplete_service import AutocompleteService
 from app.services.opensearch_service import OpenSearchService
 from app.services.vector_service import VectorService
-from app.services.autocomplete_service import AutocompleteService
+from app.utils.config import get_config
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)

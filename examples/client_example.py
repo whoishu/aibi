@@ -1,7 +1,8 @@
 """Example client usage of the autocomplete service"""
 
-import requests
 import json
+
+import requests
 
 
 class AutocompleteClient:
