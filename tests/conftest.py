@@ -1,4 +1,5 @@
 """Pytest configuration and shared fixtures"""
+
 import pytest
 from unittest.mock import Mock, AsyncMock
 
@@ -11,16 +12,11 @@ def mock_opensearch_client():
     client.indices.exists = AsyncMock(return_value=True)
     client.indices.create = AsyncMock()
     client.index = AsyncMock()
-    client.search = AsyncMock(return_value={
-        'hits': {
-            'hits': [
-                {
-                    '_source': {'text': '销售额', 'frequency': 100},
-                    '_score': 2.5
-                }
-            ]
+    client.search = AsyncMock(
+        return_value={
+            "hits": {"hits": [{"_source": {"text": "销售额", "frequency": 100}, "_score": 2.5}]}
         }
-    })
+    )
     return client
 
 
@@ -47,11 +43,7 @@ def mock_vector_service():
 @pytest.fixture
 def sample_autocomplete_request():
     """Sample autocomplete request data"""
-    return {
-        "query": "销售",
-        "user_id": "test_user_123",
-        "limit": 5
-    }
+    return {"query": "销售", "user_id": "test_user_123", "limit": 5}
 
 
 @pytest.fixture
