@@ -7,6 +7,7 @@ from app.models.schemas import Suggestion
 from app.services.opensearch_service import OpenSearchService
 from app.services.personalization_service import PersonalizationService
 from app.services.vector_service import VectorService
+from app.services.llm_service import LLMService
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +20,12 @@ class AutocompleteService:
         opensearch_service: OpenSearchService,
         vector_service: VectorService,
         personalization_service: Optional[PersonalizationService] = None,
+        llm_service: Optional[LLMService] = None,
         keyword_weight: float = 0.7,
         vector_weight: float = 0.3,
         personalization_weight: float = 0.2,
         enable_personalization: bool = True,
+        enable_llm: bool = False,
     ):
         """Initialize autocomplete service
 
@@ -30,18 +33,22 @@ class AutocompleteService:
             opensearch_service: OpenSearch service instance
             vector_service: Vector service instance
             personalization_service: Personalization service instance
+            llm_service: LLM service instance for enhanced recommendations
             keyword_weight: Weight for keyword search
             vector_weight: Weight for vector search
             personalization_weight: Weight for personalization boost
             enable_personalization: Whether to enable personalization
+            enable_llm: Whether to enable LLM-powered enhancements
         """
         self.opensearch = opensearch_service
         self.vector_service = vector_service
         self.personalization = personalization_service
+        self.llm_service = llm_service
         self.keyword_weight = keyword_weight
         self.vector_weight = vector_weight
         self.personalization_weight = personalization_weight
         self.enable_personalization = enable_personalization and personalization_service is not None
+        self.enable_llm = enable_llm and llm_service is not None and llm_service.is_available()
 
     def get_suggestions(
         self, query: str, user_id: Optional[str] = None, limit: int = 10, min_score: float = 0.1
@@ -64,31 +71,69 @@ class AutocompleteService:
 
             query = query.strip()
 
-            # Generate query vector
-            query_vector = self.vector_service.encode_single(query)
+            # Use LLM to expand/enhance query if enabled
+            search_queries = [query]
+            if self.enable_llm and len(query) > 3:  # Only for non-trivial queries
+                context = {}
+                if self.enable_personalization and user_id:
+                    # Get user history for context
+                    user_prefs = self.personalization.get_user_preferences(user_id, limit=5)
+                    if user_prefs:
+                        context["user_history"] = user_prefs
+                
+                expanded_queries = self.llm_service.expand_query(query, context=context)
+                if expanded_queries:
+                    # Add top 2 expanded queries for broader search coverage
+                    search_queries.extend(expanded_queries[:2])
+                    logger.info(f"LLM expanded query to: {search_queries}")
 
-            # Perform hybrid search
-            results = self.opensearch.hybrid_search(
-                query=query,
-                query_vector=query_vector,
-                size=limit * 2,  # Get more results for better filtering
-                keyword_weight=self.keyword_weight,
-                vector_weight=self.vector_weight,
-                min_score=min_score,
-            )
+            # Collect results from all query variations
+            all_results = []
+            for search_query in search_queries:
+                # Generate query vector
+                query_vector = self.vector_service.encode_single(search_query)
+
+                # Perform hybrid search
+                results = self.opensearch.hybrid_search(
+                    query=search_query,
+                    query_vector=query_vector,
+                    size=limit * 2,  # Get more results for better filtering
+                    keyword_weight=self.keyword_weight,
+                    vector_weight=self.vector_weight,
+                    min_score=min_score,
+                )
+                
+                # Boost original query results slightly
+                if search_query == query:
+                    for result in results:
+                        result["score"] = result["score"] * 1.1
+                
+                all_results.extend(results)
+
+            # Deduplicate by text
+            seen_texts = set()
+            unique_results = []
+            for result in all_results:
+                text_lower = result["text"].lower()
+                if text_lower not in seen_texts:
+                    seen_texts.add(text_lower)
+                    unique_results.append(result)
+
+            # Sort by score
+            unique_results.sort(key=lambda x: x.get("score", 0), reverse=True)
 
             # Apply personalization if enabled
             if self.enable_personalization and user_id:
-                results = self.personalization.boost_personalized_results(
+                unique_results = self.personalization.boost_personalized_results(
                     user_id=user_id,
                     query=query,
-                    results=results,
+                    results=unique_results,
                     boost_factor=self.personalization_weight,
                 )
 
             # Convert to Suggestion objects
             suggestions = []
-            for result in results[:limit]:
+            for result in unique_results[:limit]:
                 # Determine source
                 source = "hybrid"
                 if "source" in result:
@@ -419,8 +464,30 @@ class AutocompleteService:
                             "metadata": {"from_user_history": True}
                         })
 
-            # Combine all results: sequence queries first, then hybrid search, then history
-            all_results = sequence_queries + results + related_from_history
+            # Get LLM-generated related queries if enabled
+            llm_queries = []
+            if self.enable_llm:
+                # Build context for LLM
+                context = {}
+                if self.enable_personalization and user_id:
+                    user_prefs = self.personalization.get_user_preferences(user_id, limit=5)
+                    if user_prefs:
+                        context["user_history"] = user_prefs
+                
+                # Get existing query texts to avoid duplication
+                existing_texts = [r["text"] for r in sequence_queries + results + related_from_history]
+                
+                llm_queries = self.llm_service.generate_related_queries(
+                    query=query,
+                    existing_results=existing_texts,
+                    limit=5,
+                    context=context
+                )
+                if llm_queries:
+                    logger.info(f"LLM generated {len(llm_queries)} related queries")
+
+            # Combine all results: LLM first (highest quality), then sequence queries, hybrid search, then history
+            all_results = llm_queries + sequence_queries + results + related_from_history
 
             # Deduplicate by text (case-insensitive), keeping the first occurrence (highest priority)
             seen_texts = set()
@@ -431,7 +498,7 @@ class AutocompleteService:
                     seen_texts.add(text_lower)
                     unique_results.append(result)
 
-            # Sort by score (next queries will naturally rank higher)
+            # Sort by score (LLM and next queries will naturally rank higher)
             unique_results.sort(key=lambda x: x.get("score", 0), reverse=True)
 
             # Convert to QueryItem format

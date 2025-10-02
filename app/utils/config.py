@@ -56,6 +56,17 @@ class APIConfig(BaseModel):
     version: str = "1.0.0"
 
 
+class LLMConfig(BaseModel):
+    """LLM configuration"""
+
+    enabled: bool = False
+    provider: str = "openai"
+    model: str = "gpt-3.5-turbo"
+    temperature: float = 0.7
+    max_tokens: int = 150
+    api_key: Optional[str] = None
+
+
 class Config(BaseSettings):
     """Main configuration class"""
 
@@ -64,6 +75,7 @@ class Config(BaseSettings):
     autocomplete: AutocompleteConfig = AutocompleteConfig()
     vector_model: VectorModelConfig = VectorModelConfig()
     api: APIConfig = APIConfig()
+    llm: LLMConfig = LLMConfig()
 
     @classmethod
     def from_yaml(cls, file_path: str = "config.yaml") -> "Config":
