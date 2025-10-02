@@ -55,6 +55,30 @@ class PersonalizationService:
             logger.error(f"Redis connection check failed: {e}")
             return False
 
+    def _get_previous_query(self, user_id: str) -> Optional[str]:
+        """Get the most recent query from user's history
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            Previous query text or None
+        """
+        if self.redis_client is None:
+            return None
+
+        try:
+            history_key = f"user:{user_id}:history"
+            # Get the most recent item (index 0)
+            recent_items = self.redis_client.lrange(history_key, 0, 0)
+            if recent_items:
+                history_item = json.loads(recent_items[0])
+                return history_item.get("query")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get previous query: {e}")
+            return None
+
     def track_selection(
         self, user_id: str, query: str, selected_text: str, timestamp: Optional[str] = None
     ) -> bool:
@@ -97,6 +121,17 @@ class PersonalizationService:
             # 4. Global query -> selection frequency
             global_key = f"global:query:{query}"
             self.redis_client.zincrby(global_key, 1, selected_text)
+
+            # 5. Track query sequences for better related query suggestions
+            # Get the previous query from user's recent history
+            prev_query = self._get_previous_query(user_id)
+            if prev_query and prev_query != query:
+                # Store: previous_query -> current_query sequence
+                sequence_key = f"sequence:{prev_query}"
+                self.redis_client.zincrby(sequence_key, 1, query)
+                # Also store user-specific sequences
+                user_sequence_key = f"user:{user_id}:sequence:{prev_query}"
+                self.redis_client.zincrby(user_sequence_key, 1, query)
 
             logger.debug(f"Tracked selection for user {user_id}: {query} -> {selected_text}")
             return True
@@ -171,6 +206,84 @@ class PersonalizationService:
         except Exception as e:
             logger.error(f"Failed to get global preferences: {e}")
             return []
+
+    def get_query_sequences(
+        self, query: str, user_id: Optional[str] = None, limit: int = 10
+    ) -> Dict[str, List[tuple]]:
+        """Get queries that typically come after (next) or before (previous) the given query
+
+        Args:
+            query: Query string
+            user_id: Optional user ID for personalized sequences
+            limit: Maximum number of sequences to return
+
+        Returns:
+            Dictionary with 'next' and 'previous' query lists, each containing (query, score) tuples
+        """
+        if self.redis_client is None:
+            return {"next": [], "previous": []}
+
+        try:
+            result = {"next": [], "previous": []}
+
+            # Get queries that come after this query (next queries)
+            # First check user-specific sequences if user_id is provided
+            if user_id:
+                user_sequence_key = f"user:{user_id}:sequence:{query}"
+                user_next = self.redis_client.zrevrange(user_sequence_key, 0, limit - 1, withscores=True)
+                if user_next:
+                    result["next"].extend(user_next)
+
+            # Then check global sequences
+            global_sequence_key = f"sequence:{query}"
+            global_next = self.redis_client.zrevrange(global_sequence_key, 0, limit - 1, withscores=True)
+            
+            # Combine and deduplicate next queries
+            seen_queries = {q for q, _ in result["next"]}
+            for query_text, score in global_next:
+                if query_text not in seen_queries:
+                    result["next"].append((query_text, score))
+                    seen_queries.add(query_text)
+
+            # Limit the results
+            result["next"] = result["next"][:limit]
+
+            # Get queries that come before this query (previous queries)
+            # We need to find all keys where this query is a value in the sequence
+            # For performance, we'll scan user-specific and global sequence keys
+            if user_id:
+                # Check user-specific sequences
+                pattern = f"user:{user_id}:sequence:*"
+                for key in self.redis_client.scan_iter(match=pattern, count=100):
+                    score = self.redis_client.zscore(key, query)
+                    if score is not None:
+                        # Extract the previous query from the key
+                        prev_query = key.split(f"user:{user_id}:sequence:")[1]
+                        if prev_query and prev_query != query:
+                            result["previous"].append((prev_query, score))
+
+            # Also check global sequences
+            pattern = "sequence:*"
+            for key in self.redis_client.scan_iter(match=pattern, count=100):
+                score = self.redis_client.zscore(key, query)
+                if score is not None:
+                    # Extract the previous query from the key
+                    prev_query = key.split("sequence:")[1]
+                    if prev_query and prev_query != query:
+                        # Check if not already in results
+                        if prev_query not in {q for q, _ in result["previous"]}:
+                            result["previous"].append((prev_query, score))
+
+            # Sort previous queries by score and limit
+            result["previous"].sort(key=lambda x: x[1], reverse=True)
+            result["previous"] = result["previous"][:limit]
+
+            logger.debug(f"Found {len(result['next'])} next and {len(result['previous'])} previous queries for: {query}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to get query sequences: {e}")
+            return {"next": [], "previous": []}
 
     def boost_personalized_results(
         self, user_id: str, query: str, results: List[Dict[str, Any]], boost_factor: float = 0.2

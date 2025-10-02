@@ -325,7 +325,12 @@ class AutocompleteService:
         limit: int = 10,
         min_score: float = 0.1
     ) -> List[Dict[str, Any]]:
-        """Get related queries based on keywords, co-occurrence, and user history
+        """Get related queries based on query sequences, keywords, co-occurrence, and user history
+        
+        This method analyzes user query patterns (A->B->C sequences) to provide contextual suggestions.
+        When a user queries something similar to B, it suggests:
+        - C (queries that typically follow B) with higher priority
+        - A (queries that typically precede B) with lower priority
         
         Args:
             query: User input query
@@ -334,7 +339,7 @@ class AutocompleteService:
             min_score: Minimum score threshold
             
         Returns:
-            List of related queries with metadata
+            List of related queries with metadata, ordered by relevance
         """
         try:
             # Handle empty query
@@ -357,6 +362,47 @@ class AutocompleteService:
                 min_score=min_score
             )
             
+            # Get query sequences if personalization is enabled
+            sequence_queries = []
+            if self.enable_personalization and self.personalization:
+                sequences = self.personalization.get_query_sequences(query, user_id=user_id, limit=10)
+                
+                # Add "next" queries (queries that typically follow the current query)
+                # These get higher scores as they represent the likely next question
+                for query_text, seq_score in sequences.get("next", []):
+                    if query_text.lower() != query.lower():
+                        # Higher score for next queries (0.85-0.95 range)
+                        normalized_score = min(0.95, 0.85 + (seq_score / 20))
+                        sequence_queries.append({
+                            "text": query_text,
+                            "score": normalized_score,
+                            "source": "sequence_next",
+                            "keywords": [],
+                            "metadata": {
+                                "from_sequence": True,
+                                "sequence_type": "next",
+                                "sequence_score": seq_score
+                            }
+                        })
+                
+                # Add "previous" queries (queries that typically precede the current query)
+                # These get lower scores as they are less likely to be the user's next question
+                for query_text, seq_score in sequences.get("previous", []):
+                    if query_text.lower() != query.lower():
+                        # Lower score for previous queries (0.65-0.75 range)
+                        normalized_score = min(0.75, 0.65 + (seq_score / 20))
+                        sequence_queries.append({
+                            "text": query_text,
+                            "score": normalized_score,
+                            "source": "sequence_prev",
+                            "keywords": [],
+                            "metadata": {
+                                "from_sequence": True,
+                                "sequence_type": "previous",
+                                "sequence_score": seq_score
+                            }
+                        })
+            
             # Get user preferences if personalization is enabled
             related_from_history = []
             if self.enable_personalization and user_id and self.personalization:
@@ -367,16 +413,16 @@ class AutocompleteService:
                     if pref.lower() != query.lower():
                         related_from_history.append({
                             "text": pref,
-                            "score": 0.8,  # Fixed score for historical queries
+                            "score": 0.7,  # Fixed score for historical queries
                             "source": "history",
                             "keywords": [],
                             "metadata": {"from_user_history": True}
                         })
             
-            # Combine results with history
-            all_results = results + related_from_history
+            # Combine all results: sequence queries first, then hybrid search, then history
+            all_results = sequence_queries + results + related_from_history
             
-            # Deduplicate by text (case-insensitive)
+            # Deduplicate by text (case-insensitive), keeping the first occurrence (highest priority)
             seen_texts = set()
             unique_results = []
             for result in all_results:
@@ -385,7 +431,7 @@ class AutocompleteService:
                     seen_texts.add(text_lower)
                     unique_results.append(result)
             
-            # Sort by score
+            # Sort by score (next queries will naturally rank higher)
             unique_results.sort(key=lambda x: x.get("score", 0), reverse=True)
             
             # Convert to QueryItem format
