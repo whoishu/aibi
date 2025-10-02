@@ -37,6 +37,7 @@ class AutocompleteConfig(BaseModel):
     vector_weight: float = 0.3
     personalization_weight: float = 0.2
     enable_personalization: bool = True
+    enable_prefix_preservation: bool = True
 
 
 class VectorModelConfig(BaseModel):

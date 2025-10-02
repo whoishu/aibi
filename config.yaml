@@ -22,6 +22,7 @@ autocomplete:
   vector_weight: 0.3
   personalization_weight: 0.2
   enable_personalization: true
+  enable_prefix_preservation: true  # Enable intelligent prefix-preserving completion for long queries
   
 # Vector Model Configuration
 vector_model:
