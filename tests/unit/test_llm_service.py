@@ -243,3 +243,54 @@ class TestLLMService:
         
         assert "销售" in prompt
         assert "specific" in prompt.lower() or "clear" in prompt.lower()
+
+    @patch('app.services.llm_service.OpenAI')
+    def test_rank_prefix_completions_openai(self, mock_openai):
+        """Test prefix completion ranking with OpenAI"""
+        # Setup mock
+        mock_client = Mock()
+        mock_response = Mock()
+        mock_choice = Mock()
+        mock_message = Mock()
+        mock_message.content = '''[
+  {
+    "text": "帮我查询一下今年北京的销售额",
+    "score": 0.95,
+    "completed_term": "销售额",
+    "reason": "Most common pattern"
+  },
+  {
+    "text": "帮我查询一下今年北京的销量",
+    "score": 0.90,
+    "completed_term": "销量",
+    "reason": "Related metric"
+  }
+]'''
+        mock_choice.message = mock_message
+        mock_response.choices = [mock_choice]
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+        
+        llm = LLMService(provider="openai", api_key="test-key")
+        result = llm.rank_prefix_completions(
+            prefix="帮我查询一下今年北京的",
+            incomplete_term="销",
+            candidates=["销售额", "销量", "销售情况"],
+            limit=5
+        )
+        
+        assert len(result) == 2
+        assert result[0]["text"] == "帮我查询一下今年北京的销售额"
+        assert result[0]["score"] == 0.95
+        assert result[0]["method"] == "llm_ranked"
+
+    def test_rank_prefix_completions_not_available(self):
+        """Test prefix completion ranking when LLM is not available"""
+        llm = LLMService(provider="openai", api_key=None)
+        result = llm.rank_prefix_completions(
+            prefix="帮我查询",
+            incomplete_term="销",
+            candidates=["销售额", "销量"],
+            limit=5
+        )
+        assert result == []

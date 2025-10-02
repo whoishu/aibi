@@ -98,6 +98,7 @@ async def lifespan(app: FastAPI):
             personalization_weight=config.autocomplete.personalization_weight,
             enable_personalization=config.autocomplete.enable_personalization,
             enable_llm=config.llm.enabled,
+            enable_prefix_preservation=config.autocomplete.enable_prefix_preservation,
         )
 
         # Set global service

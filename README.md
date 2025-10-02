@@ -10,6 +10,7 @@ An intelligent autocomplete service for ChatBI system with hybrid search (keywor
 
 - **Hybrid Search**: Combines keyword-based and vector-based search for optimal results
 - **LLM-Enhanced Recommendations** (New!): Optional integration with GPT/Claude for intelligent query expansion and related suggestions
+- **Prefix-Preserving Autocomplete** (New!): Intelligently completes long queries while preserving full context (e.g., "帮我查询一下今年北京的销" → "帮我查询一下今年北京的销售额")
 - **Multilingual Support**: Full support for Chinese and English mixed input
 - **Personalization**: Learns from user behavior and provides personalized suggestions
 - **Real-time Updates**: Supports dynamic data updates for millions of documents
@@ -307,6 +308,24 @@ See [LLM_INTEGRATION.md](LLM_INTEGRATION.md) for detailed setup and usage guide.
 - Natural language understanding for better intent matching
 - Personalized recommendations based on conversation flow
 
+### Prefix-Preserving Autocomplete (New!)
+
+For long queries, the system intelligently preserves the prefix and only completes the last word:
+
+```yaml
+autocomplete:
+  enable_prefix_preservation: true  # Enable prefix-preserving mode
+```
+
+**Example:**
+- Input: "帮我查询一下今年北京的销"
+- Output: 
+  - "帮我查询一下今年北京的**销售额**"
+  - "帮我查询一下今年北京的**销量**"
+  - "帮我查询一下今年北京的**销售情况**"
+
+See [PREFIX_PRESERVATION.md](PREFIX_PRESERVATION.md) for detailed documentation and examples.
+
 ## Development
 
 ### Project Structure
@@ -327,7 +346,9 @@ aibi/
 │   │   ├── autocomplete_service.py
 │   │   ├── opensearch_service.py
 │   │   ├── vector_service.py
-│   │   └── personalization_service.py
+│   │   ├── personalization_service.py
+│   │   ├── llm_service.py
+│   │   └── prefix_preserving_service.py  # NEW: Prefix-preserving completion
 │   └── utils/
 │       ├── __init__.py
 │       └── config.py           # Configuration management

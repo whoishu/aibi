@@ -8,6 +8,7 @@ from app.services.opensearch_service import OpenSearchService
 from app.services.personalization_service import PersonalizationService
 from app.services.vector_service import VectorService
 from app.services.llm_service import LLMService
+from app.services.prefix_preserving_service import PrefixPreservingService
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class AutocompleteService:
         personalization_weight: float = 0.2,
         enable_personalization: bool = True,
         enable_llm: bool = False,
+        enable_prefix_preservation: bool = True,
     ):
         """Initialize autocomplete service
 
@@ -39,6 +41,7 @@ class AutocompleteService:
             personalization_weight: Weight for personalization boost
             enable_personalization: Whether to enable personalization
             enable_llm: Whether to enable LLM-powered enhancements
+            enable_prefix_preservation: Whether to enable prefix-preserving mode
         """
         self.opensearch = opensearch_service
         self.vector_service = vector_service
@@ -49,6 +52,16 @@ class AutocompleteService:
         self.personalization_weight = personalization_weight
         self.enable_personalization = enable_personalization and personalization_service is not None
         self.enable_llm = enable_llm and llm_service is not None and llm_service.is_available()
+        self.enable_prefix_preservation = enable_prefix_preservation
+        
+        # Initialize prefix-preserving service if LLM is available
+        self.prefix_preserving_service = None
+        if self.enable_prefix_preservation and self.enable_llm and llm_service is not None:
+            self.prefix_preserving_service = PrefixPreservingService(
+                opensearch_service=opensearch_service,
+                llm_service=llm_service,
+                personalization_service=personalization_service,
+            )
 
     def get_suggestions(
         self, query: str, user_id: Optional[str] = None, limit: int = 10, min_score: float = 0.1
@@ -70,6 +83,17 @@ class AutocompleteService:
                 return []
 
             query = query.strip()
+            
+            # Try prefix-preserving mode for long queries
+            if self.prefix_preserving_service:
+                prefix_results = self.prefix_preserving_service.get_suggestions_with_prefix_preservation(
+                    query=query,
+                    user_id=user_id,
+                    limit=limit,
+                )
+                if prefix_results:
+                    logger.info(f"Using prefix-preserving mode for query: {query}")
+                    return prefix_results
 
             # Use LLM to expand/enhance query if enabled
             search_queries = [query]

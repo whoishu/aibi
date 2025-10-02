@@ -315,6 +315,153 @@ class LLMService:
         
         return prompt
 
+    def rank_prefix_completions(
+        self,
+        prefix: str,
+        incomplete_term: str,
+        candidates: List[str],
+        user_context: Optional[Dict[str, Any]] = None,
+        limit: int = 10,
+    ) -> List[Dict[str, Any]]:
+        """Rank and complete prefix-preserved suggestions using LLM
+
+        Args:
+            prefix: Text before the incomplete term
+            incomplete_term: The incomplete word to complete
+            candidates: List of candidate completions from search
+            user_context: Optional user personalization context
+            limit: Maximum number of completions to return
+
+        Returns:
+            List of completion dictionaries with text, score, and metadata
+        """
+        if not self.is_available():
+            return []
+
+        try:
+            prompt = self._build_completion_ranking_prompt(
+                prefix, incomplete_term, candidates, user_context, limit
+            )
+            
+            if self.provider == "openai":
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are an intelligent query completion assistant. "
+                            "Analyze the prefix and incomplete term, then rank and complete suggestions.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens * 2,  # Allow more tokens for structured output
+                )
+                result = response.choices[0].message.content.strip()
+            elif self.provider == "anthropic":
+                message = self.client.messages.create(
+                    model=self.model,
+                    max_tokens=self.max_tokens * 2,
+                    temperature=self.temperature,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                result = message.content[0].text.strip()
+            else:
+                return []
+
+            # Parse the JSON response
+            import json
+            
+            # Try to extract JSON from response
+            # Sometimes LLM wraps JSON in markdown code blocks
+            if "```json" in result:
+                json_start = result.find("```json") + 7
+                json_end = result.find("```", json_start)
+                result = result[json_start:json_end].strip()
+            elif "```" in result:
+                json_start = result.find("```") + 3
+                json_end = result.find("```", json_start)
+                result = result[json_start:json_end].strip()
+            
+            completions = json.loads(result)
+            
+            # Validate and format completions
+            formatted = []
+            for item in completions[:limit]:
+                if isinstance(item, dict) and "text" in item:
+                    formatted.append({
+                        "text": item["text"],
+                        "score": item.get("score", 0.8),
+                        "method": "llm_ranked",
+                        "completed_term": item.get("completed_term", ""),
+                        "reason": item.get("reason", ""),
+                    })
+            
+            logger.info(f"LLM ranked {len(formatted)} prefix completions")
+            return formatted
+
+        except Exception as e:
+            logger.error(f"Failed to rank prefix completions with LLM: {e}")
+            return []
+
+    def _build_completion_ranking_prompt(
+        self,
+        prefix: str,
+        incomplete_term: str,
+        candidates: List[str],
+        user_context: Optional[Dict[str, Any]],
+        limit: int,
+    ) -> str:
+        """Build prompt for completion ranking"""
+        prompt = f"""You are an intelligent query completion assistant. The user is typing a query and needs help completing it.
+
+**User Input Information**:
+- Prefix: "{prefix}"
+- Incomplete term: "{incomplete_term}"
+- Candidate completions from search: {candidates[:15]}
+
+"""
+        
+        if user_context and user_context.get("user_history"):
+            prompt += f"""**User Context**:
+- Recent queries: {user_context["user_history"][:3]}
+
+"""
+        
+        prompt += f"""**Task**:
+1. Analyze each candidate to find words/phrases that complete "{incomplete_term}"
+2. Evaluate semantic coherence with the prefix
+3. Consider user history preferences if provided
+4. Rank by relevance and naturalness
+5. Generate {limit} complete query suggestions
+
+**Output Format**:
+Return a JSON array with the top {limit} completions. Each item should have:
+- "text": The complete query (prefix + natural completion)
+- "score": Relevance score (0.0-1.0)
+- "completed_term": The word that completed "{incomplete_term}"
+- "reason": Brief explanation (optional)
+
+**Example Output**:
+[
+  {{
+    "text": "{prefix}销售额",
+    "score": 0.95,
+    "completed_term": "销售额",
+    "reason": "Most common query pattern"
+  }},
+  {{
+    "text": "{prefix}销量",
+    "score": 0.90,
+    "completed_term": "销量",
+    "reason": "Related metric"
+  }}
+]
+
+Return only the JSON array:"""
+        
+        return prompt
+
     def _parse_llm_response(self, response: str) -> List[str]:
         """Parse LLM response into a list of queries
 
