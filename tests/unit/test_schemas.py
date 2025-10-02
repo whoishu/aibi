@@ -8,6 +8,11 @@ from app.models.schemas import (
     Suggestion,
     FeedbackRequest,
     DocumentRequest,
+    SimilarQueriesRequest,
+    SimilarQueriesResponse,
+    RelatedQueriesRequest,
+    RelatedQueriesResponse,
+    QueryItem,
 )
 
 
@@ -63,7 +68,7 @@ def test_feedback_request_valid():
     """Test valid feedback request"""
     feedback = FeedbackRequest(query="销售", selected="销售额", user_id="user123")
     assert feedback.query == "销售"
-    assert feedback.selected == "销售额"
+    assert feedback.selected_suggestion == "销售额"
     assert feedback.user_id == "user123"
 
 
@@ -80,4 +85,67 @@ def test_document_request_without_metadata():
     """Test document request without metadata"""
     doc = DocumentRequest(text="test query")
     assert doc.text == "test query"
-    assert doc.metadata == {}
+    assert doc.metadata is None
+
+
+@pytest.mark.unit
+def test_similar_queries_request_valid():
+    """Test valid similar queries request"""
+    request = SimilarQueriesRequest(query="销售分析", user_id="user123", limit=5)
+    assert request.query == "销售分析"
+    assert request.user_id == "user123"
+    assert request.limit == 5
+
+
+@pytest.mark.unit
+def test_similar_queries_request_defaults():
+    """Test similar queries request with defaults"""
+    request = SimilarQueriesRequest(query="test query")
+    assert request.query == "test query"
+    assert request.user_id is None
+    assert request.limit == 10
+
+
+@pytest.mark.unit
+def test_related_queries_request_valid():
+    """Test valid related queries request"""
+    request = RelatedQueriesRequest(query="客户满意度", user_id="user456", limit=8)
+    assert request.query == "客户满意度"
+    assert request.user_id == "user456"
+    assert request.limit == 8
+
+
+@pytest.mark.unit
+def test_query_item_model():
+    """Test QueryItem model"""
+    item = QueryItem(text="销售额趋势", score=0.95, source="vector")
+    assert item.text == "销售额趋势"
+    assert item.score == 0.95
+    assert item.source == "vector"
+    assert item.metadata is None
+
+
+@pytest.mark.unit
+def test_similar_queries_response():
+    """Test SimilarQueriesResponse model"""
+    queries = [
+        QueryItem(text="销售分析报告", score=0.92, source="vector"),
+        QueryItem(text="销售数据统计", score=0.88, source="hybrid"),
+    ]
+    response = SimilarQueriesResponse(query="销售分析", similar_queries=queries, total=2)
+    assert response.query == "销售分析"
+    assert len(response.similar_queries) == 2
+    assert response.total == 2
+
+
+@pytest.mark.unit
+def test_related_queries_response():
+    """Test RelatedQueriesResponse model"""
+    queries = [
+        QueryItem(text="市场分析", score=0.85, source="history"),
+        QueryItem(text="业绩报告", score=0.80, source="trending"),
+    ]
+    response = RelatedQueriesResponse(query="销售报告", related_queries=queries, total=2)
+    assert response.query == "销售报告"
+    assert len(response.related_queries) == 2
+    assert response.total == 2

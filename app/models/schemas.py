@@ -61,3 +61,39 @@ class HealthResponse(BaseModel):
     status: str = Field(..., description="Service status")
     opensearch_connected: bool = Field(..., description="OpenSearch connection status")
     redis_connected: bool = Field(..., description="Redis connection status")
+
+
+class SimilarQueriesRequest(BaseModel):
+    """Request model for similar queries endpoint"""
+    query: str = Field(..., description="User input query")
+    user_id: Optional[str] = Field(None, description="User ID for personalization")
+    limit: int = Field(10, ge=1, le=50, description="Maximum number of similar queries")
+
+
+class RelatedQueriesRequest(BaseModel):
+    """Request model for related queries endpoint"""
+    query: str = Field(..., description="User input query")
+    user_id: Optional[str] = Field(None, description="User ID for personalization")
+    limit: int = Field(10, ge=1, le=50, description="Maximum number of related queries")
+
+
+class QueryItem(BaseModel):
+    """Single query item"""
+    text: str = Field(..., description="Query text")
+    score: float = Field(..., description="Relevance/similarity score")
+    source: str = Field(..., description="Source of query (vector/history/trending)")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+
+
+class SimilarQueriesResponse(BaseModel):
+    """Response model for similar queries endpoint"""
+    query: str = Field(..., description="Original query")
+    similar_queries: List[QueryItem] = Field(default_factory=list, description="List of similar queries")
+    total: int = Field(..., description="Total number of similar queries")
+
+
+class RelatedQueriesResponse(BaseModel):
+    """Response model for related queries endpoint"""
+    query: str = Field(..., description="Original query")
+    related_queries: List[QueryItem] = Field(default_factory=list, description="List of related queries")
+    total: int = Field(..., description="Total number of related queries")

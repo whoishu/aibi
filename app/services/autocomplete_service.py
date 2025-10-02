@@ -242,3 +242,173 @@ class AutocompleteService:
         except Exception as e:
             logger.error(f"Failed to bulk add documents: {e}")
             return 0, len(documents)
+    
+    def get_similar_queries(
+        self,
+        query: str,
+        user_id: Optional[str] = None,
+        limit: int = 10,
+        min_score: float = 0.1
+    ) -> List[Dict[str, Any]]:
+        """Get similar queries based on semantic similarity
+        
+        Args:
+            query: User input query
+            user_id: Optional user ID for personalization
+            limit: Maximum number of similar queries
+            min_score: Minimum score threshold
+            
+        Returns:
+            List of similar queries with metadata
+        """
+        try:
+            # Handle empty query
+            if not query or len(query.strip()) == 0:
+                return []
+            
+            query = query.strip()
+            
+            # Generate query vector
+            query_vector = self.vector_service.encode_single(query)
+            
+            # Use vector search for semantic similarity
+            results = self.opensearch.vector_search(
+                query_vector=query_vector,
+                size=limit * 2,
+                min_score=min_score
+            )
+            
+            # Apply personalization if enabled
+            if self.enable_personalization and user_id:
+                results = self.personalization.boost_personalized_results(
+                    user_id=user_id,
+                    query=query,
+                    results=results,
+                    boost_factor=self.personalization_weight
+                )
+            
+            # Convert to QueryItem format
+            similar_queries = []
+            for result in results[:limit]:
+                # Skip if it's the same as input query
+                if result["text"].lower() == query.lower():
+                    continue
+                
+                # Determine source
+                source = "vector"
+                if "source" in result:
+                    source = result["source"]
+                
+                query_item = {
+                    "text": result["text"],
+                    "score": round(result["score"], 4),
+                    "source": source,
+                    "metadata": {
+                        "keywords": result.get("keywords", []),
+                        "doc_id": result.get("doc_id"),
+                        **result.get("metadata", {})
+                    }
+                }
+                similar_queries.append(query_item)
+            
+            logger.info(f"Generated {len(similar_queries)} similar queries for: {query}")
+            return similar_queries
+            
+        except Exception as e:
+            logger.error(f"Failed to get similar queries: {e}")
+            return []
+    
+    def get_related_queries(
+        self,
+        query: str,
+        user_id: Optional[str] = None,
+        limit: int = 10,
+        min_score: float = 0.1
+    ) -> List[Dict[str, Any]]:
+        """Get related queries based on keywords, co-occurrence, and user history
+        
+        Args:
+            query: User input query
+            user_id: Optional user ID for personalization
+            limit: Maximum number of related queries
+            min_score: Minimum score threshold
+            
+        Returns:
+            List of related queries with metadata
+        """
+        try:
+            # Handle empty query
+            if not query or len(query.strip()) == 0:
+                return []
+            
+            query = query.strip()
+            
+            # Generate query vector for hybrid search
+            query_vector = self.vector_service.encode_single(query)
+            
+            # Use hybrid search with higher keyword weight for related queries
+            # Related queries should include both semantically similar and keyword-related
+            results = self.opensearch.hybrid_search(
+                query=query,
+                query_vector=query_vector,
+                size=limit * 2,
+                keyword_weight=0.6,  # Higher keyword weight for related queries
+                vector_weight=0.4,
+                min_score=min_score
+            )
+            
+            # Get user preferences if personalization is enabled
+            related_from_history = []
+            if self.enable_personalization and user_id and self.personalization:
+                # Get user's query history for related queries
+                user_prefs = self.personalization.get_user_preferences(user_id, limit=20)
+                for pref in user_prefs:
+                    # Add queries from user history that aren't already in results
+                    if pref.lower() != query.lower():
+                        related_from_history.append({
+                            "text": pref,
+                            "score": 0.8,  # Fixed score for historical queries
+                            "source": "history",
+                            "keywords": [],
+                            "metadata": {"from_user_history": True}
+                        })
+            
+            # Combine results with history
+            all_results = results + related_from_history
+            
+            # Deduplicate by text (case-insensitive)
+            seen_texts = set()
+            unique_results = []
+            for result in all_results:
+                text_lower = result["text"].lower()
+                if text_lower not in seen_texts and text_lower != query.lower():
+                    seen_texts.add(text_lower)
+                    unique_results.append(result)
+            
+            # Sort by score
+            unique_results.sort(key=lambda x: x.get("score", 0), reverse=True)
+            
+            # Convert to QueryItem format
+            related_queries = []
+            for result in unique_results[:limit]:
+                # Determine source
+                source = result.get("source", "hybrid")
+                
+                query_item = {
+                    "text": result["text"],
+                    "score": round(result.get("score", 0), 4),
+                    "source": source,
+                    "metadata": {
+                        "keywords": result.get("keywords", []),
+                        "doc_id": result.get("doc_id"),
+                        **result.get("metadata", {})
+                    }
+                }
+                related_queries.append(query_item)
+            
+            logger.info(f"Generated {len(related_queries)} related queries for: {query}")
+            return related_queries
+            
+        except Exception as e:
+            logger.error(f"Failed to get related queries: {e}")
+            return []

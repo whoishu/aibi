@@ -9,6 +9,12 @@ from app.models.schemas import (
     AutocompleteRequest,
     AutocompleteResponse,
     BulkDocumentRequest,
+    HealthResponse,
+    SimilarQueriesRequest,
+    SimilarQueriesResponse,
+    RelatedQueriesRequest,
+    RelatedQueriesResponse,
+    QueryItem,
     DocumentRequest,
     FeedbackRequest,
     HealthResponse,
@@ -163,4 +169,73 @@ async def health_check(service: AutocompleteService = Depends(get_autocomplete_s
         )
     except Exception as e:
         logger.error(f"Health check error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/similar-queries", response_model=SimilarQueriesResponse)
+async def get_similar_queries(
+    request: SimilarQueriesRequest,
+    service: AutocompleteService = Depends(get_autocomplete_service)
+):
+    """
+    Get similar queries for a user input
+    
+    - **query**: User input query
+    - **user_id**: Optional user ID for personalization
+    - **limit**: Maximum number of similar queries (1-50)
+    
+    Returns queries that are semantically similar to the input query
+    """
+    try:
+        similar_queries = service.get_similar_queries(
+            query=request.query,
+            user_id=request.user_id,
+            limit=request.limit
+        )
+        
+        # Convert to QueryItem objects
+        query_items = [QueryItem(**item) for item in similar_queries]
+        
+        return SimilarQueriesResponse(
+            query=request.query,
+            similar_queries=query_items,
+            total=len(query_items)
+        )
+    except Exception as e:
+        logger.error(f"Similar queries error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/related-queries", response_model=RelatedQueriesResponse)
+async def get_related_queries(
+    request: RelatedQueriesRequest,
+    service: AutocompleteService = Depends(get_autocomplete_service)
+):
+    """
+    Get related queries for a user input
+    
+    - **query**: User input query
+    - **user_id**: Optional user ID for personalization
+    - **limit**: Maximum number of related queries (1-50)
+    
+    Returns queries that are contextually related to the input query,
+    including queries from user history and trending queries
+    """
+    try:
+        related_queries = service.get_related_queries(
+            query=request.query,
+            user_id=request.user_id,
+            limit=request.limit
+        )
+        
+        # Convert to QueryItem objects
+        query_items = [QueryItem(**item) for item in related_queries]
+        
+        return RelatedQueriesResponse(
+            query=request.query,
+            related_queries=query_items,
+            total=len(query_items)
+        )
+    except Exception as e:
+        logger.error(f"Related queries error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
