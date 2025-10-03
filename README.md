@@ -9,6 +9,7 @@ An intelligent autocomplete service for ChatBI system with hybrid search (keywor
 ## Features
 
 - **Hybrid Search**: Combines keyword-based and vector-based search for optimal results
+- **Metadata Management** (New!): Complete CRUD APIs for managing databases, tables, dimensions, metrics, and entities
 - **LLM-Enhanced Recommendations** (New!): Optional integration with GPT/Claude for intelligent query expansion and related suggestions
 - **Prefix-Preserving Autocomplete** (New!): Intelligently completes long queries while preserving full context (e.g., "帮我查询一下今年北京的销" → "帮我查询一下今年北京的销售额")
 - **Multilingual Support**: Full support for Chinese and English mixed input
@@ -166,7 +167,9 @@ See [frontend/README.md](frontend/README.md) for more details.
 
 ## API Usage
 
-### Get Autocomplete Suggestions
+### Autocomplete API
+
+#### Get Autocomplete Suggestions
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/autocomplete" \
@@ -253,6 +256,40 @@ curl -X POST "http://localhost:8000/api/v1/documents/bulk" \
 ```bash
 curl "http://localhost:8000/api/v1/health"
 ```
+
+### Metadata Management API
+
+The metadata management module provides complete CRUD operations for managing database metadata including dimensions, metrics, tables, entities, databases, and domains.
+
+#### Create a Dimension
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/metadata/dimensions" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "user_id",
+    "verbose_name": "用户ID",
+    "semantic_type": "ID",
+    "created_by": "admin",
+    "updated_by": "admin"
+  }'
+```
+
+#### List All Dimensions
+
+```bash
+curl "http://localhost:8000/api/v1/metadata/dimensions?skip=0&limit=10&status=1"
+```
+
+For complete metadata API documentation, see [METADATA_API.md](METADATA_API.md).
+
+## Documentation
+
+- [API.md](API.md) - Autocomplete API documentation
+- [METADATA_API.md](METADATA_API.md) - Metadata management API documentation
+- [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture details
+- [LLM_INTEGRATION.md](LLM_INTEGRATION.md) - LLM integration guide
+- [PREFIX_PRESERVATION.md](PREFIX_PRESERVATION.md) - Prefix-preserving autocomplete guide
 
 ## Configuration
 
