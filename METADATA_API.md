@@ -594,3 +594,139 @@ Metric (指标)
   ├── TableColumns (字段映射) [1:N]
   └── Tags (标签) [1:N]
 ```
+
+## 自动维度映射
+
+### 获取维度映射建议
+
+**端点**: `POST /dimension-mapping/suggest`
+
+**描述**: 为表中的字段自动推荐候选维度，基于名称匹配、别名匹配、模糊匹配、语义类型匹配等多种策略。
+
+**请求体**:
+```json
+{
+  "table_id": 123,
+  "max_candidates": 5,
+  "min_score": 0.3
+}
+```
+
+**参数说明**:
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| table_id | integer | 是 | - | 要分析的表 ID |
+| max_candidates | integer | 否 | 5 | 每个字段返回的最大候选维度数量（1-10） |
+| min_score | float | 否 | 0.3 | 最小匹配分数阈值（0.0-1.0） |
+
+**响应示例**:
+```json
+{
+  "table_id": 123,
+  "suggestions": {
+    "456": {
+      "column_id": 456,
+      "field_name": "user_id",
+      "description": "用户标识",
+      "logical_type": "bigint",
+      "candidates": [
+        {
+          "dimension_id": 10,
+          "dimension_name": "user_id",
+          "dimension_verbose_name": "用户ID",
+          "dimension_semantic_type": "ID",
+          "total_score": 1.2,
+          "scores": {
+            "exact_match": 1.0,
+            "alias_match": 0.0,
+            "fuzzy_match": 0.0,
+            "value_match": 0.0,
+            "semantic_match": 0.2
+          },
+          "confidence": "high"
+        }
+      ]
+    }
+  }
+}
+```
+
+**置信度级别**:
+- `high`: 精确匹配、别名匹配或高值匹配（≥0.8）
+- `medium`: 模糊匹配 + 语义匹配，或中等值匹配（≥0.6）
+- `low`: 其他情况
+
+**匹配策略**:
+1. **精确匹配** (权重 1.0): 字段名与维度名完全一致
+2. **别名匹配** (权重 0.95): 字段名在维度别名列表中
+3. **模糊匹配** (权重 0.5): 使用 Levenshtein 距离处理拼写差异
+4. **值匹配** (权重 1.2): 比较字段唯一值与维度可能值的重叠度
+5. **语义匹配** (权重 0.2): 字段逻辑类型与维度语义类型兼容性
+
+**cURL 示例**:
+```bash
+curl -X POST "http://localhost:8000/api/v1/metadata/dimension-mapping/suggest" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "table_id": 123,
+    "max_candidates": 5,
+    "min_score": 0.3
+  }'
+```
+
+### 应用维度映射
+
+**端点**: `POST /dimension-mapping/apply`
+
+**描述**: 将推荐的维度映射应用到表字段，更新字段的 `dimension_id`。
+
+**请求体**:
+```json
+{
+  "column_id": 456,
+  "dimension_id": 10,
+  "updated_by": "admin"
+}
+```
+
+**参数说明**:
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| column_id | integer | 是 | 要映射的字段 ID |
+| dimension_id | integer | 是 | 要关联的维度 ID |
+| updated_by | string | 是 | 执行操作的用户名 |
+
+**响应示例**:
+```json
+{
+  "success": true,
+  "message": "Successfully mapped column 456 to dimension 10"
+}
+```
+
+**错误响应**:
+```json
+{
+  "success": false,
+  "message": "Failed to apply dimension mapping. Column or dimension not found."
+}
+```
+
+**cURL 示例**:
+```bash
+curl -X POST "http://localhost:8000/api/v1/metadata/dimension-mapping/apply" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "column_id": 456,
+    "dimension_id": 10,
+    "updated_by": "admin"
+  }'
+```
+
+**使用场景**:
+1. 新增数据表后，自动获取所有字段的维度映射建议
+2. 对于高置信度（`high`）的建议，可以自动应用映射
+3. 对于中低置信度的建议，由用户审核后手动应用
+4. 通过调整 `min_score` 参数控制候选维度的数量和质量
+
+**详细文档**: 参见 [DIMENSION_MAPPING.md](DIMENSION_MAPPING.md)

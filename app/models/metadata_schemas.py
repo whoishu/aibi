@@ -347,6 +347,53 @@ class DomainResponse(BaseModel):
         from_attributes = True
 
 
+# Dimension mapping schemas
+class DimensionMappingRequest(BaseModel):
+    """Schema for requesting dimension mapping suggestions"""
+    table_id: int = Field(..., description="表ID")
+    max_candidates: int = Field(5, description="每个字段返回的最大候选维度数量", ge=1, le=10)
+    min_score: float = Field(0.3, description="最小匹配分数阈值", ge=0.0, le=1.0)
+
+
+class DimensionCandidate(BaseModel):
+    """Schema for a dimension candidate"""
+    dimension_id: int
+    dimension_name: str
+    dimension_verbose_name: str
+    dimension_semantic_type: str
+    total_score: float
+    scores: Dict[str, float]
+    confidence: str  # 'high', 'medium', 'low'
+
+
+class ColumnMappingSuggestion(BaseModel):
+    """Schema for dimension mapping suggestion for a column"""
+    column_id: int
+    field_name: str
+    description: Optional[str]
+    logical_type: str
+    candidates: List[DimensionCandidate]
+
+
+class DimensionMappingSuggestionResponse(BaseModel):
+    """Schema for dimension mapping suggestions response"""
+    table_id: int
+    suggestions: Dict[int, ColumnMappingSuggestion]
+
+
+class ApplyDimensionMappingRequest(BaseModel):
+    """Schema for applying dimension mapping"""
+    column_id: int = Field(..., description="字段ID")
+    dimension_id: int = Field(..., description="维度ID")
+    updated_by: str = Field(..., max_length=100, description="更新人")
+
+
+class ApplyDimensionMappingResponse(BaseModel):
+    """Schema for apply dimension mapping response"""
+    success: bool
+    message: str
+
+
 # List response schema
 class ListResponse(BaseModel):
     """Generic list response schema"""
