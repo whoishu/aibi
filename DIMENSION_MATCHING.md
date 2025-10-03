@@ -6,23 +6,38 @@
 
 ## 功能特性
 
-### 混合匹配策略
+### 混合匹配策略（基于评分）
 
-系统采用分层级的混合匹配策略，按以下顺序尝试匹配：
+系统采用基于评分的混合匹配策略，为每个候选维度计算匹配分数，选择得分最高的维度：
 
-1. **精确名称匹配**（Exact Name Match）
+**评分规则：**
+
+1. **精确名称匹配**（Exact Name Match）- 100分
    - 字段名与维度名称完全一致（不区分大小写）
    - 例如：`username` → 维度 `username`
 
-2. **别名匹配**（Alias Match）
+2. **别名匹配**（Alias Match）- 90分
    - 字段名在维度的别名列表中
    - 例如：`owner` → 维度 `username`（假设 `username` 的别名包含 `owner`）
 
-3. **语义类型过滤 + 模糊匹配**（Semantic Type Filtering + Fuzzy Match）
-   - 根据字段的逻辑类型推断语义类型
-   - 过滤出匹配语义类型的维度候选集
+3. **模糊名称匹配**（Fuzzy Name Match）- 70-90分
    - 使用 Levenshtein 距离进行模糊匹配
-   - 例如：`categry` → 维度 `category`（编辑距离为 1）
+   - 分数与编辑距离成反比：距离0=90分，距离1=80分，距离2=70分
+   - 例如：`categry` → 维度 `category`（编辑距离为1，得分80）
+
+4. **模糊别名匹配**（Fuzzy Alias Match）- 65-85分
+   - 与维度别名进行模糊匹配
+   - 分数略低于名称模糊匹配
+
+5. **语义类型奖励**（Semantic Type Bonus）- +10分
+   - 如果字段的推断语义类型与维度语义类型一致，额外加10分
+   - 例如：`bigint` 字段匹配 `ID` 类型维度时获得奖励
+
+**匹配流程：**
+1. 对所有活跃维度进行评分
+2. 按分数降序排序
+3. 返回得分最高的维度
+4. 记录其他高分候选维度用于调试
 
 ### 语义类型推断
 
@@ -152,7 +167,29 @@ matcher = DimensionMatcher(config)
 - field_name: `userid` (与两个维度名称都相似)
 - logical_type: `bigint`
 
-**结果：** ✅ 匹配到维度 A (`user_id`)，因为语义类型过滤优先选择了 ID 类型
+**评分过程：**
+- 维度 A (`user_id`): 模糊匹配 80分 + 语义类型奖励 10分 = **90分**
+- 维度 B (`username`): 模糊匹配 70分 + 无语义类型奖励 = **70分**
+
+**结果：** ✅ 匹配到维度 A (`user_id`)，因为得分更高（90 > 70）
+
+### 示例 5：评分排序
+
+**维度定义：**
+- 维度 A: name: `category`, semantic_type: `CATEGORY`
+- 维度 B: name: `categories`, semantic_type: `CATEGORY`
+- 维度 C: name: `cat`, alias: `category`, semantic_type: `CATEGORY`
+
+**字段：**
+- field_name: `category`
+- logical_type: `varchar`
+
+**评分过程：**
+- 维度 A: 精确匹配 100分 + 语义类型奖励 10分 = **110分**
+- 维度 B: 模糊匹配 80分 (距离1) + 语义类型奖励 10分 = **90分**
+- 维度 C: 别名匹配 90分 + 语义类型奖励 10分 = **100分**
+
+**结果：** ✅ 匹配到维度 A (`category`)，因为精确匹配得分最高（110分）
 
 ## API 集成示例
 

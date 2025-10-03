@@ -328,6 +328,93 @@ class TestDimensionMatcher:
         
         result = matcher.auto_match_dimension(column, [])
         assert result is None
+    
+    def test_auto_match_dimension_scoring_exact_beats_fuzzy(self, matcher):
+        """Test that exact match scores higher than fuzzy match"""
+        # Create dimensions where fuzzy could also match
+        dimensions = [
+            MetaDimension(
+                id=1,
+                name="category",
+                verbose_name="分类",
+                alias="",
+                semantic_type="CATEGORY",
+                data_type="str",
+                dim_type="dim",
+                created_by="test",
+                updated_by="test",
+                status=1,
+            ),
+            MetaDimension(
+                id=2,
+                name="categories",  # Fuzzy match to "category"
+                verbose_name="分类列表",
+                alias="",
+                semantic_type="CATEGORY",
+                data_type="str",
+                dim_type="dim",
+                created_by="test",
+                updated_by="test",
+                status=1,
+            ),
+        ]
+        
+        column = MetaTableColumn(
+            id=1,
+            field_name="category",
+            data_type="varchar(100)",
+            logical_type="varchar",
+            table_id=1,
+            created_by="test",
+            updated_by="test",
+        )
+        
+        result = matcher.auto_match_dimension(column, dimensions)
+        # Should match exact name (id=1) not fuzzy (id=2)
+        assert result == 1
+    
+    def test_auto_match_dimension_scoring_semantic_type_bonus(self, matcher):
+        """Test that semantic type adds bonus to score"""
+        dimensions = [
+            MetaDimension(
+                id=1,
+                name="user_name",  # Fuzzy match, wrong semantic type
+                verbose_name="用户名",
+                alias="",
+                semantic_type="CATEGORY",
+                data_type="str",
+                dim_type="dim",
+                created_by="test",
+                updated_by="test",
+                status=1,
+            ),
+            MetaDimension(
+                id=2,
+                name="user_id",  # Fuzzy match, correct semantic type
+                verbose_name="用户ID",
+                alias="",
+                semantic_type="ID",
+                data_type="str",
+                dim_type="dim",
+                created_by="test",
+                updated_by="test",
+                status=1,
+            ),
+        ]
+        
+        column = MetaTableColumn(
+            id=1,
+            field_name="userid",  # Similar to both
+            data_type="bigint",
+            logical_type="bigint",  # Should infer ID type
+            table_id=1,
+            created_by="test",
+            updated_by="test",
+        )
+        
+        result = matcher.auto_match_dimension(column, dimensions)
+        # Should match user_id (id=2) because of semantic type bonus
+        assert result == 2
 
 
 class TestValueBasedMatching:

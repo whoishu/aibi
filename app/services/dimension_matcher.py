@@ -183,12 +183,16 @@ class DimensionMatcher:
         dimensions: List[MetaDimension]
     ) -> Optional[int]:
         """
-        Automatically match a table column to a dimension using hybrid strategy.
+        Automatically match a table column to a dimension using hybrid strategy with scoring.
         
         Strategy:
-        1. Try exact name matching (including case-insensitive)
-        2. Try alias matching
-        3. Filter by semantic type and try fuzzy matching
+        Each matching method assigns a score to candidate dimensions:
+        - Exact name match: 100 points
+        - Alias match: 90 points
+        - Fuzzy match: 70-90 points (based on edit distance)
+        - Semantic type match: +10 bonus points
+        
+        Returns the dimension with the highest score above threshold.
         
         Args:
             column: Table column to match
@@ -207,32 +211,92 @@ class DimensionMatcher:
             logger.warning("No active dimensions available for matching")
             return None
         
-        # Step 1: Try exact name match
-        dim_id = self.exact_name_match(column.field_name, active_dimensions)
-        if dim_id:
-            return dim_id
-        
-        # Step 2: Try alias match
-        dim_id = self.alias_match(column.field_name, active_dimensions)
-        if dim_id:
-            return dim_id
-        
-        # Step 3: Infer semantic type and filter dimensions
+        # Infer semantic type for bonus scoring
         inferred_semantic_type = self.config.infer_semantic_type(column.logical_type)
         logger.debug(
             f"Inferred semantic type '{inferred_semantic_type}' "
             f"for field '{column.field_name}' (logical_type='{column.logical_type}')"
         )
         
-        filtered_dimensions = self.filter_by_semantic_type(
-            active_dimensions,
-            inferred_semantic_type
-        )
+        # Score each dimension
+        dimension_scores = []
         
-        # Step 4: Try fuzzy match on filtered dimensions
-        dim_id = self.fuzzy_name_match(column.field_name, filtered_dimensions)
-        if dim_id:
-            return dim_id
+        for dim in active_dimensions:
+            score = 0
+            match_type = None
+            
+            # Check exact name match (100 points)
+            if column.field_name.lower() == dim.name.lower():
+                score = 100
+                match_type = "exact_name"
+            
+            # Check alias match (90 points)
+            elif dim.alias:
+                aliases = parse_aliases(dim.alias)
+                if column.field_name.lower() in aliases:
+                    score = 90
+                    match_type = "alias"
+            
+            # Check fuzzy match (70-90 points based on distance)
+            if score == 0 and self.config.ENABLE_FUZZY_NAME_MATCH:
+                normalized_field = normalize_field_name(column.field_name)
+                normalized_dim = normalize_field_name(dim.name)
+                distance = levenshtein_distance(normalized_field, normalized_dim)
+                
+                if distance <= self.config.FUZZY_MATCH_THRESHOLD:
+                    # Score inversely proportional to distance
+                    # distance 0 = 90, distance 1 = 80, distance 2 = 70
+                    score = 90 - (distance * 10)
+                    match_type = f"fuzzy_name (distance={distance})"
+                
+                # Also check fuzzy match with aliases
+                if score == 0 and dim.alias:
+                    aliases = parse_aliases(dim.alias)
+                    for alias in aliases:
+                        normalized_alias = normalize_field_name(alias)
+                        distance = levenshtein_distance(normalized_field, normalized_alias)
+                        if distance <= self.config.FUZZY_MATCH_THRESHOLD:
+                            alias_score = 85 - (distance * 10)  # Slightly lower than name fuzzy
+                            if alias_score > score:
+                                score = alias_score
+                                match_type = f"fuzzy_alias (distance={distance})"
+            
+            # Add semantic type bonus (10 points)
+            if score > 0 and dim.semantic_type == inferred_semantic_type:
+                score += 10
+                match_type += " +semantic_type"
+            
+            if score > 0:
+                dimension_scores.append({
+                    'dimension_id': dim.id,
+                    'dimension_name': dim.name,
+                    'score': score,
+                    'match_type': match_type
+                })
+        
+        # Sort by score (descending) and return the best match
+        if dimension_scores:
+            dimension_scores.sort(key=lambda x: x['score'], reverse=True)
+            best_match = dimension_scores[0]
+            
+            logger.info(
+                f"Matched column '{column.field_name}' to dimension '{best_match['dimension_name']}' "
+                f"(id={best_match['dimension_id']}, score={best_match['score']}, "
+                f"type={best_match['match_type']})"
+            )
+            
+            # Log other candidates for debugging
+            if len(dimension_scores) > 1:
+                other_candidates = dimension_scores[1:4]  # Show top 3 alternatives
+                logger.debug(
+                    f"Other candidates for '{column.field_name}': " +
+                    ", ".join([
+                        f"{c['dimension_name']}({c['score']})"
+                        for c in other_candidates
+                    ])
+                )
+            
+            return best_match['dimension_id']
         
         # No match found
         logger.info(f"No dimension match found for field '{column.field_name}'")
