@@ -10,11 +10,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router, set_autocomplete_service
+from app.api.metadata_routes import router as metadata_router, set_metadata_service
 from app.services.autocomplete_service import AutocompleteService
 from app.services.opensearch_service import OpenSearchService
 from app.services.personalization_service import PersonalizationService
 from app.services.vector_service import VectorService
 from app.services.llm_service import LLMService
+from app.services.metadata_service import MetadataService
 from app.utils.config import get_config
 
 # Configure logging
@@ -105,6 +107,11 @@ async def lifespan(app: FastAPI):
         set_autocomplete_service(autocomplete_service)
         logger.info("Autocomplete service initialized")
 
+        # Metadata service
+        metadata_service = MetadataService(database_url="sqlite:///./metadata.db")
+        set_metadata_service(metadata_service)
+        logger.info("Metadata service initialized")
+
         logger.info("All services initialized successfully")
 
     except Exception as e:
@@ -137,6 +144,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(router, prefix="/api/v1", tags=["autocomplete"])
+app.include_router(metadata_router, prefix="/api/v1/metadata", tags=["metadata"])
 
 # Serve frontend static files if they exist
 frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"

@@ -10,6 +10,8 @@ numpy==1.24.3
 redis==5.0.1
 PyYAML==6.0.1
 jieba==0.42.1
+sqlmodel==0.0.14
+sqlalchemy==2.0.25
 # Optional LLM dependencies (install as needed)
 # openai>=1.0.0  # For OpenAI GPT models
 # anthropic>=0.18.0  # For Anthropic Claude models
