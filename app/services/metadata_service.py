@@ -13,6 +13,7 @@ from app.models.metadata import (
     MetaEntity,
     MetaMetric,
     MetaTable,
+    MetaTableColumn,
 )
 
 logger = logging.getLogger(__name__)
@@ -367,3 +368,131 @@ class MetadataService:
     def delete_domain(self, domain_id: int) -> bool:
         """Delete a domain"""
         return self.delete(MetaDomain, domain_id)
+
+    # Auto-matching methods
+    def auto_match_table_dimensions(
+        self,
+        table_id: int,
+        updated_by: str = "system"
+    ) -> Dict[str, Any]:
+        """
+        Automatically match all columns of a table to dimensions.
+        
+        This method:
+        1. Gets all columns for the specified table
+        2. Gets all active dimensions
+        3. Uses DimensionMatcher to find best match for each column
+        4. Updates the column's dimension_id if a match is found
+        
+        Args:
+            table_id: ID of the table whose columns should be matched
+            updated_by: User who triggered the auto-matching
+            
+        Returns:
+            Dictionary with matching statistics:
+            - total_columns: Total number of columns processed
+            - matched_columns: Number of columns matched to dimensions
+            - unmatched_columns: Number of columns without matches
+            - updated_columns: Number of columns actually updated
+        """
+        from app.services.dimension_matcher import DimensionMatcher
+        
+        with self._get_session() as session:
+            # Get all columns for the table
+            statement = select(MetaTableColumn).where(MetaTableColumn.table_id == table_id)
+            columns = session.exec(statement).all()
+            
+            if not columns:
+                logger.warning(f"No columns found for table_id={table_id}")
+                return {
+                    "total_columns": 0,
+                    "matched_columns": 0,
+                    "unmatched_columns": 0,
+                    "updated_columns": 0,
+                }
+            
+            # Get all active dimensions
+            dimensions = self.get_dimensions(skip=0, limit=10000, status=1)
+            
+            if not dimensions:
+                logger.warning("No active dimensions available for matching")
+                return {
+                    "total_columns": len(columns),
+                    "matched_columns": 0,
+                    "unmatched_columns": len(columns),
+                    "updated_columns": 0,
+                }
+            
+            # Initialize matcher
+            matcher = DimensionMatcher()
+            
+            # Track statistics
+            matched_count = 0
+            updated_count = 0
+            
+            # Match each column
+            for column in columns:
+                # Skip if already matched
+                if column.dimension_id is not None:
+                    logger.debug(f"Column '{column.field_name}' already has dimension_id={column.dimension_id}, skipping")
+                    continue
+                
+                # Try to find a match
+                matched_dim_id = matcher.auto_match_dimension(column, dimensions)
+                
+                if matched_dim_id:
+                    matched_count += 1
+                    
+                    # Update the column with matched dimension
+                    column.dimension_id = matched_dim_id
+                    column.updated_by = updated_by
+                    self._update_timestamps(column, is_create=False)
+                    session.add(column)
+                    updated_count += 1
+                    
+                    logger.info(
+                        f"Matched column '{column.field_name}' (id={column.id}) "
+                        f"to dimension_id={matched_dim_id}"
+                    )
+            
+            # Commit all updates
+            session.commit()
+            
+            result = {
+                "total_columns": len(columns),
+                "matched_columns": matched_count,
+                "unmatched_columns": len(columns) - matched_count,
+                "updated_columns": updated_count,
+            }
+            
+            logger.info(
+                f"Auto-matching completed for table_id={table_id}: "
+                f"{matched_count} matched out of {len(columns)} columns, "
+                f"{updated_count} columns updated"
+            )
+            
+            return result
+    
+    def get_table_columns(
+        self,
+        table_id: int,
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[MetaTableColumn]:
+        """
+        Get all columns for a specific table.
+        
+        Args:
+            table_id: ID of the table
+            skip: Number of records to skip
+            limit: Maximum number of records to return
+            
+        Returns:
+            List of table columns
+        """
+        with self._get_session() as session:
+            statement = select(MetaTableColumn).where(
+                MetaTableColumn.table_id == table_id
+            ).offset(skip).limit(limit)
+            results = session.exec(statement).all()
+            return list(results)

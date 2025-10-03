@@ -2,7 +2,7 @@
 
 import pytest
 from app.services.metadata_service import MetadataService
-from app.models.metadata import MetaDimension, MetaMetric, MetaTable, MetaEntity
+from app.models.metadata import MetaDimension, MetaMetric, MetaTable, MetaEntity, MetaTableColumn
 
 
 @pytest.fixture
@@ -297,3 +297,274 @@ def test_filter_by_status(metadata_service):
     assert len(inactive_dims) >= 1
     assert all(d.status == 1 for d in active_dims)
     assert all(d.status == 0 for d in inactive_dims)
+
+
+@pytest.mark.unit
+def test_auto_match_table_dimensions_exact_match(metadata_service):
+    """Test auto-matching table dimensions with exact name match"""
+    # Create dimensions
+    dim1 = metadata_service.create_dimension({
+        "name": "username",
+        "verbose_name": "用户名",
+        "semantic_type": "CATEGORY",
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    dim2 = metadata_service.create_dimension({
+        "name": "category",
+        "verbose_name": "分类",
+        "semantic_type": "CATEGORY",
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    # Create database and domain
+    db = metadata_service.create_database({
+        "name": "test_db",
+        "db_type": "mysql",
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    domain = metadata_service.create_domain({
+        "name": "test_domain",
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    # Create table
+    table = metadata_service.create_table({
+        "name": "test_table",
+        "full_name": "db.schema.test_table",
+        "verbose_name": "测试表",
+        "database_id": db.id,
+        "domain_id": domain.id,
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    # Create columns for the table
+    from app.models.metadata import MetaTableColumn
+    from sqlmodel import Session
+    
+    with metadata_service._get_session() as session:
+        col1 = MetaTableColumn(
+            field_name="username",
+            data_type="varchar(100)",
+            logical_type="varchar",
+            table_id=table.id,
+            created_by="test_user",
+            updated_by="test_user"
+        )
+        col2 = MetaTableColumn(
+            field_name="category",
+            data_type="varchar(50)",
+            logical_type="varchar",
+            table_id=table.id,
+            created_by="test_user",
+            updated_by="test_user"
+        )
+        col3 = MetaTableColumn(
+            field_name="count",
+            data_type="int",
+            logical_type="int",
+            table_id=table.id,
+            created_by="test_user",
+            updated_by="test_user"
+        )
+        session.add(col1)
+        session.add(col2)
+        session.add(col3)
+        session.commit()
+        session.refresh(col1)
+        session.refresh(col2)
+        session.refresh(col3)
+    
+    # Run auto-matching
+    result = metadata_service.auto_match_table_dimensions(table.id, updated_by="test_user")
+    
+    # Verify results
+    assert result["total_columns"] == 3
+    assert result["matched_columns"] == 2  # username and category
+    assert result["unmatched_columns"] == 1  # count
+    assert result["updated_columns"] == 2
+    
+    # Verify dimension_id was set correctly
+    columns = metadata_service.get_table_columns(table.id)
+    username_col = next(c for c in columns if c.field_name == "username")
+    category_col = next(c for c in columns if c.field_name == "category")
+    count_col = next(c for c in columns if c.field_name == "count")
+    
+    assert username_col.dimension_id == dim1.id
+    assert category_col.dimension_id == dim2.id
+    assert count_col.dimension_id is None
+
+
+@pytest.mark.unit
+def test_auto_match_table_dimensions_alias_match(metadata_service):
+    """Test auto-matching with alias matching"""
+    # Create dimension with aliases
+    dim = metadata_service.create_dimension({
+        "name": "username",
+        "verbose_name": "用户名",
+        "alias": "owner, user, creator",
+        "semantic_type": "CATEGORY",
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    # Create database and domain
+    db = metadata_service.create_database({
+        "name": "test_db2",
+        "db_type": "mysql",
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    domain = metadata_service.create_domain({
+        "name": "test_domain2",
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    # Create table
+    table = metadata_service.create_table({
+        "name": "test_table2",
+        "full_name": "db.schema.test_table2",
+        "verbose_name": "测试表2",
+        "database_id": db.id,
+        "domain_id": domain.id,
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    # Create column with alias name
+    from app.models.metadata import MetaTableColumn
+    from sqlmodel import Session
+    
+    with metadata_service._get_session() as session:
+        col = MetaTableColumn(
+            field_name="owner",  # Matches alias
+            data_type="varchar(100)",
+            logical_type="varchar",
+            table_id=table.id,
+            created_by="test_user",
+            updated_by="test_user"
+        )
+        session.add(col)
+        session.commit()
+        session.refresh(col)
+    
+    # Run auto-matching
+    result = metadata_service.auto_match_table_dimensions(table.id, updated_by="test_user")
+    
+    # Verify alias match worked
+    assert result["matched_columns"] == 1
+    
+    columns = metadata_service.get_table_columns(table.id)
+    assert columns[0].dimension_id == dim.id
+
+
+@pytest.mark.unit
+def test_auto_match_table_dimensions_no_dimensions(metadata_service):
+    """Test auto-matching when no dimensions exist"""
+    # Create database and domain
+    db = metadata_service.create_database({
+        "name": "test_db3",
+        "db_type": "mysql",
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    domain = metadata_service.create_domain({
+        "name": "test_domain3",
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    # Create table
+    table = metadata_service.create_table({
+        "name": "test_table3",
+        "full_name": "db.schema.test_table3",
+        "verbose_name": "测试表3",
+        "database_id": db.id,
+        "domain_id": domain.id,
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    # Create column
+    from app.models.metadata import MetaTableColumn
+    from sqlmodel import Session
+    
+    with metadata_service._get_session() as session:
+        col = MetaTableColumn(
+            field_name="some_field",
+            data_type="varchar(100)",
+            logical_type="varchar",
+            table_id=table.id,
+            created_by="test_user",
+            updated_by="test_user"
+        )
+        session.add(col)
+        session.commit()
+    
+    # Run auto-matching (no dimensions should exist at this point in fresh DB)
+    result = metadata_service.auto_match_table_dimensions(table.id, updated_by="test_user")
+    
+    # Should handle gracefully
+    assert result["total_columns"] == 1
+    assert result["matched_columns"] == 0
+
+
+@pytest.mark.unit
+def test_get_table_columns(metadata_service):
+    """Test getting table columns"""
+    # Create database and domain
+    db = metadata_service.create_database({
+        "name": "test_db4",
+        "db_type": "mysql",
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    domain = metadata_service.create_domain({
+        "name": "test_domain4",
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    # Create table
+    table = metadata_service.create_table({
+        "name": "test_table4",
+        "full_name": "db.schema.test_table4",
+        "verbose_name": "测试表4",
+        "database_id": db.id,
+        "domain_id": domain.id,
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    # Create columns
+    from app.models.metadata import MetaTableColumn
+    from sqlmodel import Session
+    
+    with metadata_service._get_session() as session:
+        for i in range(3):
+            col = MetaTableColumn(
+                field_name=f"field_{i}",
+                data_type="varchar(100)",
+                logical_type="varchar",
+                table_id=table.id,
+                created_by="test_user",
+                updated_by="test_user"
+            )
+            session.add(col)
+        session.commit()
+    
+    # Get columns
+    columns = metadata_service.get_table_columns(table.id)
+    
+    assert len(columns) == 3
+    assert all(c.table_id == table.id for c in columns)
