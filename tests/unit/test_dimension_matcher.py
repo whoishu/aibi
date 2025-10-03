@@ -328,3 +328,159 @@ class TestDimensionMatcher:
         
         result = matcher.auto_match_dimension(column, [])
         assert result is None
+
+
+class TestValueBasedMatching:
+    """Test value-based matching functionality (Phase 2)"""
+    
+    @pytest.fixture
+    def matcher(self):
+        """Create a dimension matcher instance"""
+        return DimensionMatcher()
+    
+    @pytest.fixture
+    def sample_dimensions(self):
+        """Create sample dimensions for testing"""
+        return [
+            MetaDimension(
+                id=1,
+                name="status",
+                verbose_name="状态",
+                alias="",
+                semantic_type="CATEGORY",
+                data_type="str",
+                dim_type="dim",
+                created_by="test",
+                updated_by="test",
+                status=1,
+            ),
+            MetaDimension(
+                id=2,
+                name="category",
+                verbose_name="分类",
+                alias="",
+                semantic_type="CATEGORY",
+                data_type="str",
+                dim_type="dim",
+                created_by="test",
+                updated_by="test",
+                status=1,
+            ),
+        ]
+    
+    def test_match_by_values_perfect_match(self, matcher, sample_dimensions):
+        """Test value matching with perfect overlap"""
+        field_values = {"active", "inactive", "pending"}
+        dimension_values_map = {
+            1: {"active", "inactive", "pending", "archived"},
+            2: {"electronics", "books", "clothing"},
+        }
+        
+        result = matcher.match_by_values(
+            field_values,
+            sample_dimensions,
+            dimension_values_map
+        )
+        
+        # Should match dimension 1 (status) with 100% overlap
+        assert result == 1
+    
+    def test_match_by_values_partial_match(self, matcher, sample_dimensions):
+        """Test value matching with partial overlap"""
+        field_values = {"active", "inactive", "unknown"}
+        dimension_values_map = {
+            1: {"active", "inactive", "pending"},
+            2: {"electronics", "books"},
+        }
+        
+        result = matcher.match_by_values(
+            field_values,
+            sample_dimensions,
+            dimension_values_map
+        )
+        
+        # Should match dimension 1 with 66% overlap (2/3)
+        assert result == 1
+    
+    def test_match_by_values_below_threshold(self, matcher, sample_dimensions):
+        """Test value matching below threshold"""
+        field_values = {"active", "unknown1", "unknown2", "unknown3", "unknown4"}
+        dimension_values_map = {
+            1: {"active", "inactive", "pending"},
+            2: {"electronics", "books"},
+        }
+        
+        result = matcher.match_by_values(
+            field_values,
+            sample_dimensions,
+            dimension_values_map
+        )
+        
+        # Should not match (20% overlap < 60% threshold)
+        assert result is None
+    
+    def test_match_by_values_no_dimension_values(self, matcher, sample_dimensions):
+        """Test value matching when dimensions have no values"""
+        field_values = {"active", "inactive"}
+        dimension_values_map = {}
+        
+        result = matcher.match_by_values(
+            field_values,
+            sample_dimensions,
+            dimension_values_map
+        )
+        
+        assert result is None
+    
+    def test_match_by_values_empty_field_values(self, matcher, sample_dimensions):
+        """Test value matching with empty field values"""
+        field_values = set()
+        dimension_values_map = {
+            1: {"active", "inactive"},
+        }
+        
+        result = matcher.match_by_values(
+            field_values,
+            sample_dimensions,
+            dimension_values_map
+        )
+        
+        assert result is None
+    
+    def test_match_by_values_too_many_unique_values(self, matcher, sample_dimensions):
+        """Test that value matching is skipped for high cardinality fields"""
+        # Create field with more unique values than threshold
+        field_values = {f"value_{i}" for i in range(1000)}
+        dimension_values_map = {
+            1: field_values,
+        }
+        
+        result = matcher.match_by_values(
+            field_values,
+            sample_dimensions,
+            dimension_values_map
+        )
+        
+        # Should not match because field has too many unique values
+        assert result is None
+    
+    def test_match_by_values_disabled(self, sample_dimensions):
+        """Test that value matching can be disabled"""
+        from app.services.dimension_matcher_config import DimensionMatchConfig
+        
+        config = DimensionMatchConfig()
+        config.ENABLE_VALUE_MATCH = False
+        matcher = DimensionMatcher(config)
+        
+        field_values = {"active", "inactive", "pending"}
+        dimension_values_map = {
+            1: {"active", "inactive", "pending"},
+        }
+        
+        result = matcher.match_by_values(
+            field_values,
+            sample_dimensions,
+            dimension_values_map
+        )
+        
+        assert result is None

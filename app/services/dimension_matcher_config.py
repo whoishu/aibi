@@ -16,6 +16,12 @@ class DimensionMatchConfig:
     ENABLE_SEMANTIC_TYPE_FILTER = True
     STRICT_SEMANTIC_TYPE = False  # 是否严格要求语义类型一致
     
+    # 值匹配 (Value matching)
+    ENABLE_VALUE_MATCH = True
+    VALUE_MATCH_THRESHOLD = 0.6  # 值匹配的重叠率阈值
+    VALUE_MATCH_SAMPLE_SIZE = 1000  # 采样字段值的数量
+    MAX_UNIQUE_VALUES_FOR_VALUE_MATCH = 500  # 超过此阈值不进行值匹配
+    
     # 逻辑类型到语义类型的映射 (Logical type to semantic type mapping)
     LOGICAL_TYPE_TO_SEMANTIC_TYPE: Dict[str, str] = {
         'bigint': 'ID',

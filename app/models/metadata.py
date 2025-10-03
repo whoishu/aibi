@@ -106,6 +106,27 @@ class MetaDimension(SQLModel, IndexMixin, table=True):
     entity: Optional["MetaEntity"] = Relationship(
         back_populates="dimensions", sa_relationship_kwargs={"foreign_keys": "MetaDimension.entity_id"}
     )
+    dimension_values: List["MetaDimensionValue"] = Relationship(back_populates="dimension")
+
+
+class MetaDimensionValue(SQLModel, table=True):
+    """维度枚举值"""
+    
+    __tablename__: str = "meta_dimension_value"
+    
+    id: Optional[int] = Field(default=None, primary_key=True)
+    dimension_id: int = Field(foreign_key="meta_dimension.id", description="维度ID", index=True)
+    value: str = Field(max_length=500, description="枚举值", index=True)
+    verbose_name: Optional[str] = Field(default=None, max_length=500, description="枚举值显示名称")
+    order_num: Optional[int] = Field(default=None, description="排序序号")
+    status: int = Field(default=1, description="状态, 1: 正常, 0: 下架")
+    gmt_create: Optional[datetime.datetime] = Field(default=None, description="创建时间")
+    gmt_modified: Optional[datetime.datetime] = Field(default=None, description="更新时间")
+    created_by: str = Field(max_length=100, description="创建人")
+    updated_by: str = Field(max_length=100, description="更新人")
+    
+    # Relationships
+    dimension: MetaDimension = Relationship(back_populates="dimension_values")
 
 
 class MetaMetric(SQLModel, IndexMixin, table=True):

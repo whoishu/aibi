@@ -269,7 +269,7 @@ for col in columns:
 
 ### 当前限制
 
-1. **不支持基于值的匹配**：当前版本不支持通过采样字段值来匹配维度
+1. **数据库连接需求**：值匹配功能需要实际的数据库连接才能采样字段值（待实现）
 2. **无 ML 模型支持**：尚未集成机器学习模型进行预测
 3. **静态规则**：匹配规则是静态的，不会根据历史数据自动优化
 
@@ -279,14 +279,119 @@ for col in columns:
 2. **仅匹配活跃维度**：只会匹配 `status=1` 的维度
 3. **编辑距离阈值**：默认编辑距离阈值为 2，太大可能导致错误匹配
 4. **别名格式**：别名必须用逗号分隔，系统会自动去除空格
+5. **值匹配性能**：大表采样可能较慢，建议合理设置唯一值阈值
+
+## 第二阶段：基于值的匹配（Phase 2）
+
+### 功能概述
+
+Phase 2 引入了基于维度枚举值的匹配功能，通过比较字段的唯一值与维度的已知值来进行匹配。
+
+### 新增功能
+
+1. **维度值管理**
+   - `MetaDimensionValue` 模型：存储维度的枚举值
+   - 批量创建维度值
+   - 查询维度值集合
+
+2. **基于值的匹配**
+   - 采样字段唯一值
+   - 与维度值计算重叠率
+   - 选择重叠率最高的维度
+
+### 使用方法
+
+#### 管理维度值
+
+```python
+from app.services.metadata_service import MetadataService
+
+service = MetadataService()
+
+# 批量创建维度值
+values = ["active", "inactive", "pending", "archived"]
+count = service.bulk_create_dimension_values(
+    dimension_id=1,
+    values=values,
+    created_by="admin"
+)
+
+# 查询维度值
+dim_values = service.get_dimension_values(dimension_id=1)
+
+# 获取多个维度的值映射
+values_map = service.get_dimension_values_map(
+    dimension_ids=[1, 2, 3],
+    status=1
+)
+```
+
+#### 启用值匹配
+
+```python
+# 方法 1：在调用时启用
+result = service.auto_match_table_dimensions(
+    table_id=123,
+    updated_by="admin",
+    enable_value_matching=True  # 启用值匹配
+)
+
+# 方法 2：通过配置启用
+from app.services.dimension_matcher_config import DimensionMatchConfig
+
+config = DimensionMatchConfig()
+config.ENABLE_VALUE_MATCH = True
+config.VALUE_MATCH_THRESHOLD = 0.6  # 重叠率阈值
+config.MAX_UNIQUE_VALUES_FOR_VALUE_MATCH = 500  # 最大唯一值数量
+
+from app.services.dimension_matcher import DimensionMatcher
+matcher = DimensionMatcher(config)
+```
+
+### 匹配流程
+
+启用值匹配后，匹配流程更新为：
+
+1. 尝试精确名称匹配 → 如果找到则返回
+2. 尝试别名匹配 → 如果找到则返回
+3. 推断语义类型并过滤维度
+4. 尝试模糊匹配 → 如果找到则返回
+5. **[新增] 采样字段值并进行值匹配** → 如果找到则返回
+6. 返回 None（无匹配）
+
+### 配置选项
+
+```python
+# 值匹配相关配置
+ENABLE_VALUE_MATCH = True  # 启用值匹配
+VALUE_MATCH_THRESHOLD = 0.6  # 重叠率阈值（默认60%）
+VALUE_MATCH_SAMPLE_SIZE = 1000  # 采样数量
+MAX_UNIQUE_VALUES_FOR_VALUE_MATCH = 500  # 超过此值不进行值匹配
+```
+
+### 匹配示例
+
+```python
+# 假设维度 "status" 有值: ["active", "inactive", "pending", "archived"]
+# 表字段 "order_status" 的唯一值: ["active", "inactive", "pending"]
+
+# 计算重叠率: 3/3 = 100% > 60% (阈值)
+# 结果：匹配成功，字段关联到 "status" 维度
+```
+
+### 性能优化
+
+- **唯一值限制**：只对唯一值较少的字段进行值匹配（默认 ≤ 500）
+- **采样限制**：最多采样 1000 个唯一值
+- **缓存映射**：一次加载所有维度值到内存映射
+
+### 注意事项
+
+1. **数据库连接**：`sample_field_values` 方法需要实际的数据库连接才能采样字段值
+2. **性能考虑**：大表采样可能较慢，建议在非高峰期进行
+3. **准确性**：重叠率阈值可以根据实际情况调整
 
 ## 未来增强方向
-
-### 阶段二：值匹配（2-4 周）
-
-- 实现基于采样值的匹配
-- 支持小规模枚举值的快速匹配
-- 使用 Bloom Filter 优化大规模值匹配
 
 ### 阶段三：智能化（长期）
 
@@ -294,6 +399,7 @@ for col in columns:
 - 训练机器学习模型提高匹配准确率
 - 支持用户反馈学习
 - 提供匹配置信度评分
+- 实现 Bloom Filter 优化大规模值匹配
 
 ## 相关文档
 

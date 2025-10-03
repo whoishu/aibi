@@ -9,6 +9,7 @@ from sqlmodel import Session, create_engine, select
 from app.models.metadata import (
     MetaDatabase,
     MetaDimension,
+    MetaDimensionValue,
     MetaDomain,
     MetaEntity,
     MetaMetric,
@@ -39,6 +40,7 @@ class MetadataService:
         from app.models.metadata import (
             MetaDatabase,
             MetaDimension,
+            MetaDimensionValue,
             MetaDomain,
             MetaEntity,
             MetaMetric,
@@ -235,6 +237,116 @@ class MetadataService:
     def delete_dimension(self, dimension_id: int) -> bool:
         """Delete a dimension"""
         return self.delete(MetaDimension, dimension_id)
+    
+    # Dimension value methods
+    def create_dimension_value(self, data: Dict[str, Any]) -> MetaDimensionValue:
+        """Create a dimension value"""
+        return self.create(MetaDimensionValue, data)
+    
+    def get_dimension_values(
+        self,
+        dimension_id: int,
+        status: Optional[int] = None
+    ) -> List[MetaDimensionValue]:
+        """
+        Get all values for a specific dimension.
+        
+        Args:
+            dimension_id: ID of the dimension
+            status: Optional status filter (1: active, 0: inactive)
+            
+        Returns:
+            List of dimension values
+        """
+        with self._get_session() as session:
+            statement = select(MetaDimensionValue).where(
+                MetaDimensionValue.dimension_id == dimension_id
+            )
+            
+            if status is not None:
+                statement = statement.where(MetaDimensionValue.status == status)
+            
+            results = session.exec(statement).all()
+            return list(results)
+    
+    def get_dimension_values_map(
+        self,
+        dimension_ids: Optional[List[int]] = None,
+        status: int = 1
+    ) -> Dict[int, set]:
+        """
+        Get a map of dimension_id to set of values for efficient lookup.
+        
+        Args:
+            dimension_ids: Optional list of dimension IDs to fetch values for.
+                          If None, fetches for all dimensions.
+            status: Status filter (default: 1 for active values)
+            
+        Returns:
+            Dictionary mapping dimension_id to set of values
+        """
+        with self._get_session() as session:
+            statement = select(MetaDimensionValue).where(
+                MetaDimensionValue.status == status
+            )
+            
+            if dimension_ids:
+                statement = statement.where(MetaDimensionValue.dimension_id.in_(dimension_ids))
+            
+            results = session.exec(statement).all()
+            
+            # Build map
+            values_map = {}
+            for dim_value in results:
+                if dim_value.dimension_id not in values_map:
+                    values_map[dim_value.dimension_id] = set()
+                values_map[dim_value.dimension_id].add(dim_value.value)
+            
+            return values_map
+    
+    def bulk_create_dimension_values(
+        self,
+        dimension_id: int,
+        values: List[str],
+        created_by: str = "system"
+    ) -> int:
+        """
+        Bulk create dimension values.
+        
+        Args:
+            dimension_id: ID of the dimension
+            values: List of unique values to add
+            created_by: User who created the values
+            
+        Returns:
+            Number of values created
+        """
+        with self._get_session() as session:
+            # Get existing values to avoid duplicates
+            existing = session.exec(
+                select(MetaDimensionValue.value).where(
+                    MetaDimensionValue.dimension_id == dimension_id
+                )
+            ).all()
+            existing_values = set(existing)
+            
+            # Create new values
+            count = 0
+            for value in values:
+                if value not in existing_values:
+                    dim_value = MetaDimensionValue(
+                        dimension_id=dimension_id,
+                        value=value,
+                        created_by=created_by,
+                        updated_by=created_by
+                    )
+                    self._update_timestamps(dim_value, is_create=True)
+                    session.add(dim_value)
+                    count += 1
+            
+            session.commit()
+            logger.info(f"Created {count} dimension values for dimension_id={dimension_id}")
+            return count
 
     # Metric-specific methods
     def create_metric(self, data: Dict[str, Any]) -> MetaMetric:
@@ -370,10 +482,44 @@ class MetadataService:
         return self.delete(MetaDomain, domain_id)
 
     # Auto-matching methods
+    def sample_field_values(
+        self,
+        table_id: int,
+        field_name: str,
+        limit: int = 1000
+    ) -> set:
+        """
+        Sample unique values from a table field.
+        
+        Note: This is a placeholder implementation. In production, this should
+        query the actual data table to get unique values. For now, returns empty set.
+        
+        Args:
+            table_id: ID of the table
+            field_name: Name of the field to sample
+            limit: Maximum number of unique values to sample
+            
+        Returns:
+            Set of unique field values
+        """
+        # TODO: Implement actual table querying based on table connection info
+        # This would require:
+        # 1. Get table metadata (database connection, schema, table name)
+        # 2. Connect to the actual database
+        # 3. Execute: SELECT DISTINCT field_name FROM table LIMIT limit
+        # 4. Return set of values
+        
+        logger.debug(
+            f"Sampling values for field '{field_name}' in table_id={table_id} "
+            "(placeholder implementation - returns empty set)"
+        )
+        return set()
+    
     def auto_match_table_dimensions(
         self,
         table_id: int,
-        updated_by: str = "system"
+        updated_by: str = "system",
+        enable_value_matching: bool = False
     ) -> Dict[str, Any]:
         """
         Automatically match all columns of a table to dimensions.
@@ -382,11 +528,13 @@ class MetadataService:
         1. Gets all columns for the specified table
         2. Gets all active dimensions
         3. Uses DimensionMatcher to find best match for each column
-        4. Updates the column's dimension_id if a match is found
+        4. Optionally uses value-based matching if enabled
+        5. Updates the column's dimension_id if a match is found
         
         Args:
             table_id: ID of the table whose columns should be matched
             updated_by: User who triggered the auto-matching
+            enable_value_matching: Whether to enable value-based matching (Phase 2)
             
         Returns:
             Dictionary with matching statistics:
@@ -394,6 +542,7 @@ class MetadataService:
             - matched_columns: Number of columns matched to dimensions
             - unmatched_columns: Number of columns without matches
             - updated_columns: Number of columns actually updated
+            - value_matched_columns: Number matched via value-based matching
         """
         from app.services.dimension_matcher import DimensionMatcher
         
@@ -409,6 +558,7 @@ class MetadataService:
                     "matched_columns": 0,
                     "unmatched_columns": 0,
                     "updated_columns": 0,
+                    "value_matched_columns": 0,
                 }
             
             # Get all active dimensions
@@ -421,14 +571,28 @@ class MetadataService:
                     "matched_columns": 0,
                     "unmatched_columns": len(columns),
                     "updated_columns": 0,
+                    "value_matched_columns": 0,
                 }
             
             # Initialize matcher
             matcher = DimensionMatcher()
             
+            # Get dimension values map if value matching is enabled
+            dimension_values_map = {}
+            if enable_value_matching:
+                dimension_ids = [dim.id for dim in dimensions]
+                dimension_values_map = self.get_dimension_values_map(
+                    dimension_ids=dimension_ids,
+                    status=1
+                )
+                logger.info(
+                    f"Loaded dimension values for {len(dimension_values_map)} dimensions"
+                )
+            
             # Track statistics
             matched_count = 0
             updated_count = 0
+            value_matched_count = 0
             
             # Match each column
             for column in columns:
@@ -437,8 +601,36 @@ class MetadataService:
                     logger.debug(f"Column '{column.field_name}' already has dimension_id={column.dimension_id}, skipping")
                     continue
                 
-                # Try to find a match
+                # Try name-based matching first
                 matched_dim_id = matcher.auto_match_dimension(column, dimensions)
+                
+                # If no match and value matching is enabled, try value-based matching
+                if not matched_dim_id and enable_value_matching and dimension_values_map:
+                    field_values = self.sample_field_values(
+                        table_id,
+                        column.field_name,
+                        limit=matcher.config.VALUE_MATCH_SAMPLE_SIZE
+                    )
+                    
+                    if field_values:
+                        # Filter dimensions by semantic type first
+                        inferred_semantic_type = matcher.config.infer_semantic_type(column.logical_type)
+                        filtered_dimensions = matcher.filter_by_semantic_type(
+                            dimensions,
+                            inferred_semantic_type
+                        )
+                        
+                        matched_dim_id = matcher.match_by_values(
+                            field_values,
+                            filtered_dimensions,
+                            dimension_values_map
+                        )
+                        
+                        if matched_dim_id:
+                            value_matched_count += 1
+                            logger.info(
+                                f"Value-based match found for column '{column.field_name}'"
+                            )
                 
                 if matched_dim_id:
                     matched_count += 1
@@ -463,12 +655,14 @@ class MetadataService:
                 "matched_columns": matched_count,
                 "unmatched_columns": len(columns) - matched_count,
                 "updated_columns": updated_count,
+                "value_matched_columns": value_matched_count,
             }
             
             logger.info(
                 f"Auto-matching completed for table_id={table_id}: "
                 f"{matched_count} matched out of {len(columns)} columns, "
-                f"{updated_count} columns updated"
+                f"{updated_count} columns updated, "
+                f"{value_matched_count} via value matching"
             )
             
             return result

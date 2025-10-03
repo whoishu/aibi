@@ -568,3 +568,141 @@ def test_get_table_columns(metadata_service):
     
     assert len(columns) == 3
     assert all(c.table_id == table.id for c in columns)
+
+
+@pytest.mark.unit
+def test_create_dimension_value(metadata_service):
+    """Test creating a dimension value"""
+    # Create dimension first
+    dim = metadata_service.create_dimension({
+        "name": "status_dim",
+        "verbose_name": "状态",
+        "semantic_type": "CATEGORY",
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    # Create dimension value
+    dim_value = metadata_service.create_dimension_value({
+        "dimension_id": dim.id,
+        "value": "active",
+        "verbose_name": "激活",
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    assert dim_value.id is not None
+    assert dim_value.dimension_id == dim.id
+    assert dim_value.value == "active"
+
+
+@pytest.mark.unit
+def test_get_dimension_values(metadata_service):
+    """Test getting dimension values"""
+    # Create dimension
+    dim = metadata_service.create_dimension({
+        "name": "priority",
+        "verbose_name": "优先级",
+        "semantic_type": "CATEGORY",
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    # Create multiple values
+    for value in ["high", "medium", "low"]:
+        metadata_service.create_dimension_value({
+            "dimension_id": dim.id,
+            "value": value,
+            "created_by": "test_user",
+            "updated_by": "test_user"
+        })
+    
+    # Get values
+    values = metadata_service.get_dimension_values(dim.id)
+    
+    assert len(values) == 3
+    value_set = {v.value for v in values}
+    assert value_set == {"high", "medium", "low"}
+
+
+@pytest.mark.unit
+def test_get_dimension_values_map(metadata_service):
+    """Test getting dimension values map"""
+    # Create two dimensions with values
+    dim1 = metadata_service.create_dimension({
+        "name": "status1",
+        "verbose_name": "状态1",
+        "semantic_type": "CATEGORY",
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    dim2 = metadata_service.create_dimension({
+        "name": "status2",
+        "verbose_name": "状态2",
+        "semantic_type": "CATEGORY",
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    # Add values to dim1
+    for value in ["active", "inactive"]:
+        metadata_service.create_dimension_value({
+            "dimension_id": dim1.id,
+            "value": value,
+            "created_by": "test_user",
+            "updated_by": "test_user"
+        })
+    
+    # Add values to dim2
+    for value in ["pending", "completed"]:
+        metadata_service.create_dimension_value({
+            "dimension_id": dim2.id,
+            "value": value,
+            "created_by": "test_user",
+            "updated_by": "test_user"
+        })
+    
+    # Get map
+    values_map = metadata_service.get_dimension_values_map([dim1.id, dim2.id])
+    
+    assert len(values_map) == 2
+    assert values_map[dim1.id] == {"active", "inactive"}
+    assert values_map[dim2.id] == {"pending", "completed"}
+
+
+@pytest.mark.unit
+def test_bulk_create_dimension_values(metadata_service):
+    """Test bulk creating dimension values"""
+    # Create dimension
+    dim = metadata_service.create_dimension({
+        "name": "color",
+        "verbose_name": "颜色",
+        "semantic_type": "CATEGORY",
+        "created_by": "test_user",
+        "updated_by": "test_user"
+    })
+    
+    # Bulk create values
+    values = ["red", "green", "blue", "yellow"]
+    count = metadata_service.bulk_create_dimension_values(
+        dim.id,
+        values,
+        created_by="test_user"
+    )
+    
+    assert count == 4
+    
+    # Verify values were created
+    dim_values = metadata_service.get_dimension_values(dim.id)
+    value_set = {v.value for v in dim_values}
+    assert value_set == set(values)
+    
+    # Test duplicate prevention
+    count2 = metadata_service.bulk_create_dimension_values(
+        dim.id,
+        ["red", "green", "orange"],  # red and green already exist
+        created_by="test_user"
+    )
+    
+    assert count2 == 1  # Only orange should be added

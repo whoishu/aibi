@@ -1,7 +1,7 @@
 """Service for automatic field-to-dimension matching"""
 
 import logging
-from typing import List, Optional
+from typing import List, Optional, Set
 
 from app.models.metadata import MetaDimension, MetaTableColumn
 from app.services.dimension_matcher_config import DimensionMatchConfig
@@ -237,3 +237,71 @@ class DimensionMatcher:
         # No match found
         logger.info(f"No dimension match found for field '{column.field_name}'")
         return None
+    
+    def match_by_values(
+        self,
+        field_values: Set[str],
+        dimensions: List[MetaDimension],
+        dimension_values_map: dict
+    ) -> Optional[int]:
+        """
+        Find dimension by comparing field unique values with dimension values.
+        
+        This method samples unique values from a field and compares them with
+        known dimension values to find the best match based on overlap ratio.
+        
+        Args:
+            field_values: Set of unique values from the field
+            dimensions: List of available dimensions
+            dimension_values_map: Dictionary mapping dimension_id to set of values
+            
+        Returns:
+            Dimension ID if match found with ratio above threshold, None otherwise
+        """
+        if not self.config.ENABLE_VALUE_MATCH:
+            return None
+        
+        if not field_values:
+            logger.debug("No field values provided for value matching")
+            return None
+        
+        # Check if field has too many unique values
+        if len(field_values) > self.config.MAX_UNIQUE_VALUES_FOR_VALUE_MATCH:
+            logger.debug(
+                f"Field has {len(field_values)} unique values, "
+                f"exceeding threshold {self.config.MAX_UNIQUE_VALUES_FOR_VALUE_MATCH}"
+            )
+            return None
+        
+        best_match_id = None
+        max_ratio = 0.0
+        
+        for dim in dimensions:
+            if dim.id not in dimension_values_map:
+                continue
+            
+            dim_values = dimension_values_map[dim.id]
+            if not dim_values:
+                continue
+            
+            # Calculate overlap
+            intersection = field_values & dim_values
+            overlap_ratio = len(intersection) / len(field_values) if len(field_values) > 0 else 0
+            
+            if overlap_ratio > max_ratio and overlap_ratio >= self.config.VALUE_MATCH_THRESHOLD:
+                max_ratio = overlap_ratio
+                best_match_id = dim.id
+                logger.debug(
+                    f"Value match candidate: dimension '{dim.name}' "
+                    f"(id={dim.id}, ratio={overlap_ratio:.2f})"
+                )
+        
+        if best_match_id:
+            matched_dim = next((d for d in dimensions if d.id == best_match_id), None)
+            if matched_dim:
+                logger.info(
+                    f"Value match: field values → dimension '{matched_dim.name}' "
+                    f"(id={best_match_id}, ratio={max_ratio:.2f})"
+                )
+        
+        return best_match_id
