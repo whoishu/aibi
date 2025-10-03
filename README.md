@@ -10,6 +10,7 @@ An intelligent autocomplete service for ChatBI system with hybrid search (keywor
 
 - **Hybrid Search**: Combines keyword-based and vector-based search for optimal results
 - **Metadata Management** (New!): Complete CRUD APIs for managing databases, tables, dimensions, metrics, and entities
+- **Automatic Dimension Matching** (New!): Intelligent field-to-dimension mapping using exact matching, alias matching, and fuzzy matching with semantic type filtering
 - **LLM-Enhanced Recommendations** (New!): Optional integration with GPT/Claude for intelligent query expansion and related suggestions
 - **Prefix-Preserving Autocomplete** (New!): Intelligently completes long queries while preserving full context (e.g., "帮我查询一下今年北京的销" → "帮我查询一下今年北京的销售额")
 - **Multilingual Support**: Full support for Chinese and English mixed input
@@ -287,6 +288,7 @@ For complete metadata API documentation, see [METADATA_API.md](METADATA_API.md).
 
 - [API.md](API.md) - Autocomplete API documentation
 - [METADATA_API.md](METADATA_API.md) - Metadata management API documentation
+- [DIMENSION_MATCHING.md](DIMENSION_MATCHING.md) - Automatic dimension matching guide
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture details
 - [LLM_INTEGRATION.md](LLM_INTEGRATION.md) - LLM integration guide
 - [PREFIX_PRESERVATION.md](PREFIX_PRESERVATION.md) - Prefix-preserving autocomplete guide
