@@ -24,8 +24,13 @@ from app.models.metadata_schemas import (
     TableCreate,
     TableResponse,
     TableUpdate,
+    DimensionMappingRequest,
+    DimensionMappingSuggestionResponse,
+    ApplyDimensionMappingRequest,
+    ApplyDimensionMappingResponse,
 )
 from app.services.metadata_service import MetadataService
+from app.services.dimension_mapping_service import DimensionMappingService
 
 logger = logging.getLogger(__name__)
 
@@ -525,3 +530,74 @@ async def delete_domain(
     if not success:
         raise HTTPException(status_code=404, detail="Domain not found")
     return None
+
+
+# Dimension mapping endpoints
+@router.post("/dimension-mapping/suggest", response_model=DimensionMappingSuggestionResponse)
+async def suggest_dimension_mappings(
+    request: DimensionMappingRequest,
+    service: MetadataService = Depends(get_metadata_service)
+):
+    """
+    Suggest dimension mappings for table columns
+    
+    This endpoint analyzes table columns and suggests candidate dimensions based on:
+    - Exact name matching
+    - Alias matching
+    - Fuzzy matching (using Levenshtein distance)
+    - Value-based matching (if dimension values are provided)
+    - Semantic type compatibility
+    
+    Returns a scored list of candidate dimensions for each unmapped column.
+    """
+    try:
+        with service._get_session() as session:
+            mapping_service = DimensionMappingService(session)
+            suggestions = mapping_service.suggest_dimension_mappings(
+                table_id=request.table_id,
+                max_candidates=request.max_candidates,
+                min_score=request.min_score
+            )
+            
+            return DimensionMappingSuggestionResponse(
+                table_id=request.table_id,
+                suggestions=suggestions
+            )
+    except Exception as e:
+        logger.error(f"Error suggesting dimension mappings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/dimension-mapping/apply", response_model=ApplyDimensionMappingResponse)
+async def apply_dimension_mapping(
+    request: ApplyDimensionMappingRequest,
+    service: MetadataService = Depends(get_metadata_service)
+):
+    """
+    Apply a dimension mapping to a table column
+    
+    This endpoint assigns a dimension to a table column based on user confirmation
+    of the suggested mapping.
+    """
+    try:
+        with service._get_session() as session:
+            mapping_service = DimensionMappingService(session)
+            success = mapping_service.apply_dimension_mapping(
+                column_id=request.column_id,
+                dimension_id=request.dimension_id,
+                updated_by=request.updated_by
+            )
+            
+            if success:
+                return ApplyDimensionMappingResponse(
+                    success=True,
+                    message=f"Successfully mapped column {request.column_id} to dimension {request.dimension_id}"
+                )
+            else:
+                return ApplyDimensionMappingResponse(
+                    success=False,
+                    message="Failed to apply dimension mapping. Column or dimension not found."
+                )
+    except Exception as e:
+        logger.error(f"Error applying dimension mapping: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
